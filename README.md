@@ -30,7 +30,7 @@ contract and nothing is faked in the meantime.
 In Claude Code:
 
 ```
-/plugin marketplace add maludb-ed/maludb-os-integration
+/plugin marketplace add maludb/maludb-os-integration
 /plugin install maludb-os-integration@maludb-os
 ```
 

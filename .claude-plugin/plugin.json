@@ -6,6 +6,6 @@
     "name": "Edward Honour"
   },
   "license": "MIT",
-  "repository": "https://github.com/maludb-ed/maludb-os-integration",
+  "repository": "https://github.com/maludb/maludb-os-integration",
   "keywords": ["maludb", "business-os", "mcp", "memory-first", "php", "agents", "integration"]
 }
