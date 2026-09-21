@@ -1,0 +1,11 @@
+{
+  "name": "maludb-os-integration",
+  "version": "0.1.0",
+  "description": "Prepares an application for integration into the MaluDB Business OS — how its memories are stored (record memory in PostgreSQL 17, activity memory in MaluDB), how its MCP servers and APIs must cover its functionality, and how the platform's agents expect to reach it (tool grants, action tokens, ledger proxy, skills, the application registry)",
+  "author": {
+    "name": "Edward Honour"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/maludb-ed/maludb-os-integration",
+  "keywords": ["maludb", "business-os", "mcp", "memory-first", "php", "agents", "integration"]
+}

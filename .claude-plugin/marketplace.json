@@ -1,0 +1,13 @@
+{
+  "name": "maludb-os",
+  "owner": {
+    "name": "Edward Honour"
+  },
+  "plugins": [
+    {
+      "name": "maludb-os-integration",
+      "source": "./",
+      "description": "Prepares an application for integration into the MaluDB Business OS: memory storage, MCP/API coverage, and the agent interface"
+    }
+  ]
+}
