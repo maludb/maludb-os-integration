@@ -9,6 +9,8 @@ account**; it keeps a **mirror** of the kernel's directory, with the kernel's id
 
 ## 1. Receiving a person — the hand-off token
 
+*Minting is built on the kernel (2026-09-22, A3): `app/auth.php` — `mint_sso_token()`, `sign_sso_claims()`, and the verifiers `verify_sso_token()`, `verify_sso_claims()`, `verify_sso_logout_notice()`, which an application in PHP may copy verbatim.*
+
 The launcher shows a person the applications they hold a live access grant on. Clicking one
 mints a token and redirects the browser to the application's `sso.path` (declared in
 `maludb-os.json`, `registration.md`):

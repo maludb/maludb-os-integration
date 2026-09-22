@@ -139,7 +139,7 @@ build-plan phase 7 items on the kernel side.
 
 | Owed | Why the application cannot do it alone | Until then |
 |---|---|---|
-| **Sign-on**: the launcher at `app.<domain>`, the hand-off token minted there, the sign-out notice, the `sso` paths on the application row | Identity is the kernel's | Build the receivers to the contract (`sign-on-and-directory.md` §1–2); test them with a token signed by hand; nobody can sign in until the kernel mints |
+| ~~**Sign-on**~~ — **built on the kernel 2026-09-22 (A2–A3)**: the launcher at `app.<domain>`, `/launch/<id>` mints the token and sends the browser to the application's `sso_path`, sign-out posts the notice to `sso_logout_path`; both paths are fields on the application (form and `application_save`) | — | Build the receivers to the contract (`sign-on-and-directory.md` §1–2) and register the two paths |
 | **The directory API** and the **application token**: reads, the change feed, HR's writes | The directory lives in the kernel's database | Mirror from hand-off claims only; the timer answers "not connected" when `OS_APPLICATION_TOKEN` is absent; HR's write screens refuse with that sentence |
 | **The chat endpoint** for the command bar | The ledger proxy, the runner and the grants are the kernel's | The bar says "The assistant is not connected yet" (§5) |
 | The renderers attach **bearer endpoints of applications from us** with `${BOS_RUN_TOKEN}` (today they attach only `app_key = 'platform'`) | The runner renders the MCP client config | An agent's client never reaches the application; a person's token does |

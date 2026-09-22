@@ -166,5 +166,6 @@ entry exists, else new) with the fields above; **Endpoints** tab: add the two MC
 after the servers are up; **Access** tab: grant the owning department; **Expertise** tab: name
 the expert once hired in Agent HR and assign the skills (`php bin/import_skill.php --dir
 skills/<name> --email <admin>` on the kernel, then `skill_assign` at application scope).
-Sign-on paths and the application token have no screen yet — they land with the kernel's
-sign-on and directory slices (`agents.md`, "What the kernel still owes").
+The **sign-on path** and **sign-out path** are fields on the application's form (and
+`application_save`'s `sso_path`, `sso_logout_path`) since 2026-09-22; the application token lands
+with the directory slice (`agents.md`, "What the kernel still owes").
