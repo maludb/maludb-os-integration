@@ -126,31 +126,40 @@ the row. Log the same event in the application's own `activity_log` with the ker
 
 ## 5. The command bar — the application's assistant runs in the kernel
 
-Every application on our stack ships the voice-first command bar (`chat-actions` in
-`htmx-php-builder`). It stays the application's feature, but the model behind it is **not the
-application's**: the application holds no model key, and every model call must reach the
-kernel's prompt ledger. So the bar posts the utterance to the kernel:
+*Built on the kernel 2026-09-22 (A6).* Every application on our stack ships the voice-first
+command bar (`chat-actions` in `htmx-php-builder`). It stays the application's feature, but the
+model behind it is **not the application's**: the application holds no model key, and every model
+call must reach the kernel's prompt ledger. So the bar posts the utterance to the kernel:
 
 ```
-POST {OS_INTERNAL_URL}/api/v1/agents/{agent_key}/chat
+POST {OS_INTERNAL_URL}/api/v1/agents/chat.php?agent=expert        (or ?agent=<agent member id>)
 Authorization: Bearer ${OS_APPLICATION_TOKEN}
 X-Acting-Member: <member id>
-{"utterance": "...", "screen": "<manifest screen key>", "context": {"record_id": ...}, "conversation_id": "..."}
+Content-Type: application/json
+{"utterance": "...", "screen": "<manifest screen key>", "context": {"record_id": 12}, "conversation_id": "<your id>", "wait": 60}
 ```
 
-`agent_key` is the shipped agent the registration names for the bar (`assistant.agent`,
-normally the expert). The kernel runs one turn of that agent with the application's tools,
-through its ledger proxy, as a run whose requester is the acting person; it answers
-`{"reply": "...", "actions": [{"tool","status","record_id"|"approval_request_id"}], "navigate": "<screen>"|null, "run_id"}`.
-An action the agent is not granted is refused by the kernel; an approval-category action pauses
-in the kernel's queue and the reply says so. The application renders the reply and follows
-`navigate`; it never calls a model and never ships ledger rows.
+`expert` is the agent the kernel names on the application's Expertise tab; any other agent must
+hold access to the application. The kernel runs ONE turn of that agent as an agent run (trigger
+`chat`) — its own grants, every model call through the ledger proxy, approvals paused in the
+kernel's queue, the acting person as requester, the application stamped on the run and its ledger
+rows — and answers:
 
-Until the chat endpoint exists on the kernel (owed — `agents.md`), the bar's router may run
-**only on a person's own MCP token against the application's read servers** for navigation and
-questions, with no model call the kernel cannot see: in practice, ship the bar wired to the
-endpoint above and let it answer *"The assistant is not connected yet"* when
-`OS_APPLICATION_TOKEN` is absent.
+```
+200 {"run_id", "request_id", "status": "succeeded|failed|awaiting_approval|cancelled", "finished": true,
+     "reply": "...", "error": null, "approval_request_id": null,
+     "actions": [{"tool": "booking_create", "status": "ok", "duration_ms": 412, "record_id": 88}],
+     "navigate": null, "conversation_id": "...", "cost": "0.0392", "currency": "USD"}
+202 {... "status": "running", "finished": false ...}   → GET /api/v1/agents/chat.php?run=<run_id> until finished
+```
+
+`wait` (seconds, up to 110) is how long the kernel holds the request; a run that outlasts it is
+fetched with GET. `conversation_id` is yours: the kernel carries the last three turns of it into
+the next prompt. `actions` are the tool calls the run made, in order; a paused one shows as
+`awaiting_approval` with the request id — the reply says so in the agent's words. `navigate` is
+reserved (the kernel does not know your screens). Refusals: 400 no acting member, 403 no grant or
+an agent without access, 404 no expert named, 409 the agent is busy or inactive, 422 an empty
+utterance. Render the reply, list the actions, follow nothing blindly.
 
 ## 6. The ledger feed — for the accounting application
 
