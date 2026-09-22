@@ -1,15 +1,15 @@
-# Memory — how an application stores what the platform expects to find
+# Memory — how an application stores what the kernel expects to find
 
 Three stores, deliberately kept apart. The application writes the first two itself; the third
-belongs to the platform, and the application only ever *reads* it through the platform.
+belongs to the kernel, and the application only ever *reads* it through the kernel.
 
 | Memory | Where | Written by | Read by |
 |---|---|---|---|
 | **Record memory** | The application's own PostgreSQL 17 database, base tables | The application's PHP, as its read-write role | Its `mcp_*` views, through a read-only role, by its records MCP server |
 | **Activity memory** | The application's `activity_log` (append-only), shipped to the tenant's MaluDB as `activity` episodes | `log_activity()` only | Its `mcp_activity_*` views (activity MCP server); MaluDB recall |
-| **Agent memory + skills** | The tenant's MaluDB memory database (`<tenant>_memory`) | The platform's PHP handlers and its agent runner | The platform's Memory MCP server (8814) |
+| **Agent memory + skills** | The tenant's MaluDB memory database (`<tenant>_memory`) | The kernel's PHP handlers and its agent runner | The kernel's Memory MCP server (8814) |
 
-An application never opens a connection to the platform's database, and the platform never
+An application never opens a connection to the kernel's database, and the kernel never
 opens one to the application's. Everything crosses as MCP calls, API calls, or MaluDB episodes.
 
 ## 1. Record memory
@@ -30,7 +30,7 @@ opens one to the application's. Everything crosses as MCP calls, API calls, or M
   from that one id — never trusts a role passed in.
 - **Visibility views.** Every table an agent may read gets a `mcp_<table>` view declared
   `WITH (security_barrier = true)` whose `WHERE` clause *is* the row-level rule, calling one
-  visibility function (the platform's is `app_can_see(module, owner_member_id, department_id,
+  visibility function (the kernel's is `app_can_see(module, owner_member_id, department_id,
   entity_type, entity_id, organization_id)` — owner, super-admin, dept-admin of that department,
   else module grant + department membership). The primary key is re-aliased `<entity>_id`; raw
   columns that hide secrets or internals are simply not selected. `GRANT SELECT` on the view to the
@@ -56,7 +56,7 @@ CREATE TABLE activity_log (
     entity_type     text, entity_id bigint,  -- singular table name + its PK; both null for non-record events
     before          jsonb, after jsonb,      -- the changed fields only
     request_id      text, session_id text, ip_address inet,
-    agent_run_id    bigint,                  -- the platform's run id when an agent acted (no FK)
+    agent_run_id    bigint,                  -- the kernel's run id when an agent acted (no FK)
     department_id   bigint, location_id bigint,
     created_at      timestamptz NOT NULL DEFAULT now()
 );
@@ -78,20 +78,20 @@ function log_activity(PDO $pdo, string $action, ?string $entityType = null,
 function log_screen_view(PDO $pdo, string $screen): void   // action 'screen.view'
 ```
 
-Rules the platform relies on:
+Rules the kernel relies on:
 
 - **`action` is `entity.verb`**, lower snake_case, dot-separated: `booking.save`, `booking.cancel`,
   `ticket.set_status`, `auth.login_failed`, `cron.run`, `api.bookings.read` (three parts for API
   reads). The dot is structural — approval policies match `'refund.*'` and `'*.delete'`.
 - **`source`**: the UI is `'web'` (there is no `'ui'`); a token API read is `'api'`; an action
-  taken by a platform agent through an action token is `'agent'` when the token carries a run id,
+  taken by a kernel agent through an action token is `'agent'` when the token carries a run id,
   `'assistant'` otherwise; `'mcp'` for the actions MCP server; `'cron'` under CLI. Default it from
   the request, never from a parameter an outside caller controls.
 - **`before` / `after`** are the changed fields only. Money actions must write `after.amount` and
   `after.currency`. Anything sensitive (a memory text, a credential, a document body) goes in as a
   **200-character excerpt at most** — never the value.
 - **`request_id`**: honour an inbound `X-Request-Id`; when an agent's action token carries a run id,
-  use the run's own request id for every row of that run, so the platform's prompt ledger links to
+  use the run's own request id for every row of that run, so the kernel's prompt ledger links to
   the activity the call produced. Otherwise 8 random bytes, hex.
 - `log_screen_view()` on a JSON request logs **only** when the header `X-Screen-View: 1` is present
   (a real render, not a prefetch).
@@ -101,7 +101,7 @@ Rules the platform relies on:
 
 ### Shipping to MaluDB
 
-A bridge (the platform's is `mcp/activity_ingest.py`, run by a systemd timer every minute as the
+A bridge (the kernel's is `mcp/activity_ingest.py`, run by a systemd timer every minute as the
 web user) ships new rows as episodes:
 
 1. `SELECT pg_try_advisory_lock(hashtext('activity_ingest'))` — not held ⇒ exit 0.
@@ -139,7 +139,7 @@ web user) ships new rows as episodes:
 5. `UPDATE activity_ingest_state SET last_id = GREATEST(last_id, $id)` — the checkpoint only moves
    forward; a duplicate episode is preferable to a lost one.
 
-**Add one payload key the platform's bridge does not send: `"application": "<catalog_key>"`** — the
+**Add one payload key the kernel's bridge does not send: `"application": "<catalog_key>"`** — the
 tenant's memory holds episodes from every application, and recall needs to know which one an
 episode came from. Put it first in `payload`.
 
@@ -154,9 +154,9 @@ application.
 
 ## 3. Agent memory and skills — read-only from the application's side
 
-The platform owns agent memory. Its namespaces are `member:<id>`, `agent:<id>`, `dept:<id>` and
-`org`; reads are through the platform's Memory MCP server (`recall`, `core_memory`,
-`session_search`); writes are platform PHP actions that are gated, approved and logged
+The kernel owns agent memory. Its namespaces are `member:<id>`, `agent:<id>`, `dept:<id>` and
+`org`; reads are through the kernel's Memory MCP server (`recall`, `core_memory`,
+`session_search`); writes are kernel PHP actions that are gated, approved and logged
 (`memory_remember`, `core_memory_set`). An application does **not** call
 `/v1/memory/remember`, does **not** write principal profiles, and does **not** ingest skills. What
 it contributes is:

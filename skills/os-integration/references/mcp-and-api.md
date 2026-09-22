@@ -1,8 +1,8 @@
 # MCP servers and APIs — how an application must cover its functionality
 
-The platform's rule: **a module is not done until an agent can query it and act on it.** For an
+The kernel's rule: **a module is not done until an agent can query it and act on it.** For an
 application from us that means two read MCP servers it runs itself, an action manifest the
-platform's actions server executes, and, when an outside system needs it, a token API.
+kernel's actions server executes, and, when an outside system needs it, a token API.
 Everything an agent can do in the application goes through these — never a database connection,
 never a scraped screen.
 
@@ -10,15 +10,15 @@ never a scraped screen.
 |---|---|---|---|---|
 | `<app>_records_mcp` | Record questions | `mcp_*` views, role `<app>_records_ro` | The application | Under the application's name, `/mcp/records` |
 | `<app>_activity_mcp` | Activity questions | `mcp_activity_*` views, role `<app>_activity_ro` | The application | Under the application's name, `/mcp/activity` |
-| Action tools | Every action a button can do | The application's **action manifest → registry**; the tools POST to its PHP handlers on the internal port | **The platform's actions server** (one per tenant, localhost only) | Never proxied |
+| Action tools | Every action a button can do | The application's **action manifest → registry**; the tools POST to its PHP handlers on the internal port | **The kernel's actions server** (one per tenant, localhost only) | Never proxied |
 
-Why the application does not ship an actions server: the platform's one enforces tool grants at
+Why the application does not ship an actions server: the kernel's one enforces tool grants at
 the MCP boundary, refuses writes under an evaluation run, holds the relay key the agent must not
 have, and turns a handler's `location` into `record_id`. Those are controls, and a control that
 each application re-implements is not one. The application's job is to make its writes
 *executable* by that server (§3) and *safe* when they arrive (§3, PHP side).
 
-Ports are **configuration, not constants**: the platform owns 8811–8816, 8765 and 8080. Read
+Ports are **configuration, not constants**: the kernel owns 8811–8816, 8765 and 8080. Read
 `MCP_RECORDS_PORT`, `MCP_ACTIVITY_PORT` and `APP_INTERNAL_PORT` from `config/.env`; the
 installation agent assigns them per application and writes them into the registry
 (`registration.md`).
@@ -32,7 +32,7 @@ Python 3, the MCP SDK's `FastMCP` (`mcp>=1.2,<2`), **streamable HTTP** at `/mcp`
 loopback, so Apache must proxy with `ProxyPreserveHost Off` for `/mcp/*`.
 
 Two files carry the whole pattern and are reused verbatim by every server (copy them from the
-platform's `mcp/db.py` and `mcp/server_common.py`, about 260 lines together):
+kernel's `mcp/db.py` and `mcp/server_common.py`, about 260 lines together):
 
 - `db.py` — env loader for `config/.env`; one cached asyncpg pool per role (`min_size=1,
   max_size=8, command_timeout=15`) with json/jsonb codecs registered so tools never return
@@ -74,28 +74,28 @@ server never filters rows in Python by who is asking.
    have no grant on the table, only `EXECUTE` on this function. Minted by
    `php bin/mint_mcp_token.php --email … --label … [--scope mcp|api]`. This is how a person's
    Claude Desktop or Claude Code connects.
-2. **The tenant's signed action token** — what the platform's assistant and agents present.
+2. **The tenant's signed action token** — what the kernel's assistant and agents present.
    Two forms, HMAC-SHA256 over the payload with the tenant's `ACTION_TOKEN_KEY`:
    - `{member_id}.{expires}.{hmac}` signed over `"mid.exp"` — acts for the person at the keyboard (TTL 600 s).
    - `{member_id}.{expires}.{run_id}.{hmac}` signed over `"run:mid.exp.run"` — an **agent run
-     token**, minted only by the platform's agent runner, alive for the run.
+     token**, minted only by the kernel's agent runner, alive for the run.
 
    **The integration contract: every application from us on a tenant's server verifies with the
    tenant's `ACTION_TOKEN_KEY` and `ACTIONS_RELAY_KEY`** — the installation agent writes the same
-   two keys into each application's `config/.env`. That is what lets a platform agent present the
+   two keys into each application's `config/.env`. That is what lets a kernel agent present the
    token it already holds to any application, with its own member id and run id intact, and
-   nobody minting per-application credentials. Member ids are the platform's (see §5).
+   nobody minting per-application credentials. Member ids are the kernel's (see §5).
 
    `resolve_token()` tries the hash first, then the signed shape. A run token is what a
-   platform agent presents to the read servers (as Bearer) and what arrives at the PHP handlers
-   (as `X-Action-Token`, relayed by the platform's actions server).
+   kernel agent presents to the read servers (as Bearer) and what arrives at the PHP handlers
+   (as `X-Action-Token`, relayed by the kernel's actions server).
 
-   **Grants, fail closed.** The platform decides which tools an agent holds on an endpoint
+   **Grants, fail closed.** The kernel decides which tools an agent holds on an endpoint
    (`agent_tool_grants`); a person's token is never filtered. The application's read servers
-   install the same `agent_grants` hook as the platform's, but they cannot query the platform's
-   database. Until the platform exposes a run-facts call (`agents.md`, "What the platform still
+   install the same `agent_grants` hook as the kernel's, but they cannot query the kernel's
+   database. Until the kernel exposes a run-facts call (`agents.md`, "What the kernel still
    owes"), **a run token on an application's read server lists and calls no tools** — a person's
-   token works, an agent's is refused with the platform's own sentence: *"'x' is not among the
+   token works, an agent's is refused with the kernel's own sentence: *"'x' is not among the
    tools this agent was granted on <endpoint>."* Never fail open here.
 
 ### What a tool returns
@@ -121,7 +121,7 @@ answers, written down with its gate. Then:
   statement_timeout='5s'`, wrapped as `SELECT * FROM (…) _q LIMIT 200`, run under the read role
   with `app.member_id` set. Safe by construction because the role sees only the views. Its
   docstring **enumerates every readable view by name**.
-- **Gates** use the platform's vocabulary and are enforced in SQL, not Python: `insider` (anyone
+- **Gates** use the kernel's vocabulary and are enforced in SQL, not Python: `insider` (anyone
   who works here — excludes external members), `mod:<grant>`, `admin` (super-admin, or dept-admin
   within their departments), `super`. The view's `WHERE` carries it (`WHERE app_is_insider()`,
   `app_has_module('bookings') OR app_is_super_admin()`). A tool only trims what the view already
@@ -139,10 +139,10 @@ where.append(f"col = ${len(args)}")`.
 
 ## 3. Actions — the manifest is the source of truth
 
-Writes never happen in Python. The platform's actions server turns a **markdown action manifest**
+Writes never happen in Python. The kernel's actions server turns a **markdown action manifest**
 into tools that POST to the application's own PHP handlers, form-encoded, on the internal port.
 The application ships the manifest, the builder and the registry it produces; the installation
-agent hands the registry (with the application's base URL) to the platform's actions server,
+agent hands the registry (with the application's base URL) to the kernel's actions server,
 which loads every installed application's registry beside its own.
 
 **Manifest** (`docs/<app>-action-manifest.md`), one table per section, eight columns:
@@ -164,7 +164,7 @@ own table so `find_screen` and `navigate` work.
 `mcp/action_registry.json`; `built` is literally `is_file(webroot . endpoint)`, so an unbuilt
 action is findable but never callable; `--check` exits non-zero when the registry is stale.
 
-**What the platform's tool factory does with it** (so the manifest is written to fit): for every
+**What the kernel's tool factory does with it** (so the manifest is written to fit): for every
 built action it builds the input model, registers with `readOnlyHint: False` and `destructiveHint
 = confirm`, and writes the description from the manifest's own words — the log event, *"Allowed
 for: {who} — the endpoint enforces it"*, the confirm instruction, the approval category, the undo
@@ -172,7 +172,7 @@ sentence, and *"After success, say what you did in ONE short sentence and END TH
 parameters resolve through a table of `(view, id column, label column)`: digits → id lookup,
 otherwise `ILIKE … LIMIT 6`; several matches return the candidates so the assistant asks one
 question. **The application's registry must therefore name, for each entity parameter, the
-`mcp_*` view and columns that resolve it** — the platform cannot reach the application's
+`mcp_*` view and columns that resolve it** — the kernel cannot reach the application's
 database, so the actions server resolves entities by calling the application's own records MCP
 `find_*` tool named in the registry (`"resolve": {"tool": "find_contacts", "id": "contact_id",
 "label": "display_name"}`).
@@ -220,20 +220,20 @@ keys — booleans as `'1'/'0'` (not sent ≠ false), jsonb addresses expanded to
 arrays as pg literals. A table `PARTIAL_UPDATE_TARGETS = [endpoint => [base table, id field,
 view, view id column]]` names what may be prefilled. Only under an action token, never for a form.
 
-## 5. Identity: the platform's member ids, everywhere
+## 5. Identity: the kernel's member ids, everywhere
 
-The platform signs people in to an application from us, so the application does **not** own
-identities. Its `members` table mirrors the platform's: **the same `id` values**, `member_kind`
-(`human`|`agent`), `business_role`, `is_external`, `status`, plus department membership, kept in
-step at sign-on and by the installation agent. Consequences that must hold:
+The kernel signs people in, so the application does **not** own identities: no password, no
+login form, no account of its own. Its `members` and `department_members` tables are a
+**mirror** of the kernel's directory with **the same `id` values**, written only from a
+hand-off token's claims or the directory change feed, and every request re-checks the mirror
+row's status. The whole contract — the `/sso` receiver, the sign-out notice, the mirror tables,
+the directory API, the application token, the command bar through the kernel's chat endpoint —
+is `sign-on-and-directory.md`. Consequences that must hold here:
 
-- `app.member_id` means the same person in every application and in the platform.
+- `app.member_id` means the same person in every application and in the kernel.
 - MaluDB namespaces (`member:<id>`, `agent:<id>`, `dept:<id>`) line up across applications.
 - An agent's run token names a member the application already knows; an unknown id is refused,
   not auto-created.
-- The application keeps **no password**; the sign-on hand-off (a signed token on the action
-  token's pattern is the recommendation — the mechanism is still open on the platform side) is
-  the only way in besides a bearer token.
 
 ## 6. A token API for things that are not MCP clients
 
@@ -268,25 +268,27 @@ the application's UI.
     ProxyPass        /mcp/activity http://127.0.0.1:${MCP_ACTIVITY_PORT}/mcp
     ProxyPassReverse /mcp/activity http://127.0.0.1:${MCP_ACTIVITY_PORT}/mcp
 </VirtualHost>
-# PHP on the internal port, for the platform's actions server and approval replays only
+# PHP on the internal port, for the kernel's actions server and approval replays only
 <VirtualHost 127.0.0.1:${APP_INTERNAL_PORT}>
     DocumentRoot /srv/apps/reservations/html
 </VirtualHost>
 ```
 
-The platform's registry knows the two proxied servers by URL under the application's name
+The kernel's registry knows the two proxied servers by URL under the application's name
 (`registration.md`); the internal port is what its actions server posts to.
 
-## Known gaps to design around (true of the platform today)
+## Known gaps to design around (true of the kernel today)
 
 - No `offset`/`truncated` on list tools — raise `limit` or filter harder.
 - MCP tool calls are not themselves logged to `activity_log` (the token's `last_used_at` is the
   only trace). Log yours if the question inventory needs "what did the agent ask".
 - No rate limiting on MCP or API — add it before an endpoint is reachable beyond a known origin.
-- The platform's actions server loads only its own registry today; loading an application's
+- The kernel's actions server loads only its own registry today; loading an application's
   registry with a base URL, and resolving entities through the application's `find_*` tools,
-  are platform changes owed under phase 7 (`agents.md`). Ship the manifest and registry now so
+  are kernel changes owed under phase 7 (`agents.md`). Ship the manifest and registry now so
   nothing waits on the application when they land.
+- The kernel's launcher, hand-off token, directory API and chat endpoint are owed too
+  (`agents.md`, the table). Build the receivers and the mirror now; test with hand-signed tokens.
 
 ## Checklist
 
@@ -295,5 +297,5 @@ The platform's registry knows the two proxied servers by URL under the applicati
 - [ ] `mcp_access_tokens` + `mcp_resolve_token()`; `ACTION_TOKEN_KEY`/`ACTIONS_RELAY_KEY` from the tenant; run tokens fail closed on tools.
 - [ ] Action manifest → builder → `mcp/action_registry.json` with entity `resolve` entries; `record_id` on every create; partial updates.
 - [ ] Handlers report through `emit_action_status()`; JSON mode; token + relay verified; token replaces CSRF; every write logged.
-- [ ] Members mirror the platform's ids; no passwords.
+- [ ] Members mirror the kernel's ids; no passwords, no login form; `/sso` and `/sso/logout` receivers; directory timer.
 - [ ] Apache: `/mcp/records` and `/mcp/activity` proxied with `ProxyPreserveHost Off`; PHP on a loopback internal port.

@@ -1,21 +1,21 @@
-# Agents — how the platform's workforce expects to reach an application
+# Agents — how the kernel's workforce expects to reach an application
 
-An agent on the platform is an employee: a member row (`member_kind = 'agent'`, always role
+An agent on the kernel is an employee: a member row (`member_kind = 'agent'`, always role
 `user`), an employment profile (job description = system prompt, model, budget, manager, tool
 grants, duties), and a run record for every piece of work it does. **An application never runs
 an agent, never holds a model key, and never sees a credential.** It is a place agents work.
 
 ## 1. What a run looks like from the application's side
 
-The platform's agent runner (one process: a runner API on 8815 and a **ledger proxy** on 8816)
+The kernel's agent runner (one process: a runner API on 8815 and a **ledger proxy** on 8816)
 starts a run, mints two per-run credentials, prepares a sandboxed profile, and executes it in a
 harness (`hermes` or `claude_agent_sdk`). What reaches the application:
 
 | Arrives as | On | Meaning |
 |---|---|---|
 | `Authorization: Bearer {member}.{exp}.{run}.{hmac}` | The application's records / activity MCP | **The run token** — signed with the tenant's `ACTION_TOKEN_KEY` over `"run:member.exp.run"`. The member id is the agent; the run id is the `agent_runs` row. TTL = the run's timeout + 60 s. |
-| `X-Action-Token` + `X-Action-Relay: hmac(ACTIONS_RELAY_KEY, token)` | The application's PHP handlers, on the internal port | The same token, relayed by the platform's actions server. Only that server holds the relay key, so an agent cannot reach a handler directly. |
-| `X-Action-Token` + `X-Approval-Replay: {id}.{hmac}` | A PHP handler | A person approved a paused action; the platform re-POSTs the original body as the requester (120 s token). |
+| `X-Action-Token` + `X-Action-Relay: hmac(ACTIONS_RELAY_KEY, token)` | The application's PHP handlers, on the internal port | The same token, relayed by the kernel's actions server. Only that server holds the relay key, so an agent cannot reach a handler directly. |
+| `X-Action-Token` + `X-Approval-Replay: {id}.{hmac}` | A PHP handler | A person approved a paused action; the kernel re-POSTs the original body as the requester (120 s token). |
 
 The application therefore verifies, with the tenant's shared keys, and then **acts as the member
 the token names**: sets `app.member_id`, refuses an id it has no member row for (§4 of
@@ -32,7 +32,7 @@ the token names**: sets `app.member_id`, refuses an id it has no member row for 
   {Authorization: "Bearer ${BOS_RUN_TOKEN}"}}` and the exact list of tool names granted. The
   tool name is what the server reports; the harness prefixes `mcp__<slug>__`. A tool it was not
   granted is not offered, and if called anyway is refused at the server.
-- Where to look first: `my_applications` on the platform (what it can reach — name, url,
+- Where to look first: `my_applications` on the kernel (what it can reach — name, url,
   capability, endpoint count) and `get_application` (the endpoints: name, kind, url,
   `auth_kind`, `has_credential` as a boolean, `mcp_surface_version`). **Never a credential.**
 
@@ -44,14 +44,14 @@ the token names**: sets `app.member_id`, refuses an id it has no member row for 
   linked to `activity_log` by `request_id`. A run whose call could not be ledgered is void.
 - **Approve anything.** An agent may never answer an approval, give a run verdict, or assign a
   skill.
-- **Write memory directly.** Remembering is a platform action that is gated, approved and logged.
+- **Write memory directly.** Remembering is a kernel action that is gated, approved and logged.
 
-## 2. Writes: grants, approvals, evaluations — three controls, all platform-side
+## 2. Writes: grants, approvals, evaluations — three controls, all kernel-side
 
 1. **Tool grants** (`agent_tool_grants`: agent × endpoint × tool, optional
    `constraints.max_amount`). Enforced at the MCP boundary; a grant can only name an endpoint that
    is `kind='mcp'`, `agent_reachable` and `active`. For an application, the grantable things are
-   its read tools (on its own endpoints) and its action tools (on the platform's Actions MCP,
+   its read tools (on its own endpoints) and its action tools (on the kernel's Actions MCP,
    once its registry is loaded).
 2. **Approvals.** A handler asks `check_approval(action_key, log_event, summary, parameters,
    entity, amount, currency)` before it writes. A policy matches on the **log event**
@@ -62,14 +62,14 @@ the token names**: sets `app.member_id`, refuses an id it has no member row for 
    chain) is notified, and the agent's persona says: stop and report. Approval **replays** the
    request to the same handler. The manifest's "Agent approval" column declares the category
    (`money_out`, `deletion`, `external_send`, `other`).
-3. **Evaluations.** An eval run may change nothing. The platform's actions server records what a
+3. **Evaluations.** An eval run may change nothing. The kernel's actions server records what a
    write would have called and never sends it, and refuses outright when it cannot tell whether
    the run is an evaluation; the eval runner checks after every trial that nothing changed.
 
-For an application from us, (1) and (3) come free by routing writes through the platform's
+For an application from us, (1) and (3) come free by routing writes through the kernel's
 actions server. (2) needs the application's handlers to pause the same way — see the contract:
 
-**Contract, until the platform's approval hook exists** (owed, below): a handler whose manifest
+**Contract, until the kernel's approval hook exists** (owed, below): a handler whose manifest
 row carries an approval category, when called by an **agent** (a four-part token), answers
 `emit_action_status(false, …)` with HTTP **202** and the `pending_approval` body above *without
 creating a request* — `approval_request_id: null` — and logs `booking.cancel.paused` with the
@@ -89,7 +89,7 @@ the policy engine is not reachable.
   the same day and offer three" is worth more than a feature list.
 - **Its expert** — the agent people and other agents ask about the application. The application
   proposes it (`registration.md`, the `expert` block): a job description, the tools it should be
-  granted on each endpoint, the access capability. The platform proposes the hire; a person
+  granted on each endpoint, the access capability. The kernel proposes the hire; a person
   confirms (model, budget, manager). Naming an expert grants nothing — the proposal is what
   makes the access request complete.
 - **Memory** — episodes only (`memory.md` §2). The application does not write agent memory.
@@ -98,7 +98,7 @@ the policy engine is not reachable.
 
 ## 4. Telemetry the application must not break
 
-The platform keeps, for every run: `agent_run_events` (tool call / result / denied, with
+The kernel keeps, for every run: `agent_run_events` (tool call / result / denied, with
 duration and status — no arguments, no results), `prompt_ledger` + `prompt_payloads`, and a
 person's `run_verdicts`. Evidence an evaluation will later need, none of it backfillable. The
 application's part is small and exact:
@@ -110,7 +110,20 @@ application's part is small and exact:
 - Return **`record_id`**-able locations from every create.
 - Never put a secret, a token or a full document body in a tool result, a log row or an error.
 
-## 5. Duties and delegation (context, nothing to build)
+## 5. The command bar — the application's assistant, run by the kernel *(2026-09-22)*
+
+The voice-first command bar every application ships stays the application's feature, and until
+the desktop companion exists it is the one place a person meets an agent. The agent behind it is
+one the application ships (`registration.md`, `assistant.agent`), hired in the kernel; the bar
+posts each utterance to the kernel's chat endpoint with the application token and the acting
+member, and the kernel runs one turn of that agent — the application's tools attached, every
+model call through the ledger proxy, grants and approvals enforced as for any run — and answers
+with the reply, the actions taken or paused, and where to navigate. **The application never
+calls a model and never holds a model key**; the alternative (its own router, ledger rows shipped
+afterwards) was rejected for that reason. Wire format and the interim behaviour:
+`sign-on-and-directory.md` §5.
+
+## 6. Duties and delegation (context, nothing to build)
 
 Agents pick up **duties** on a cron schedule (a missed day is one run, not 24), an
 **orchestrator** may delegate one level down to subagents on its roster, and a **voice agent**
@@ -119,16 +132,25 @@ location's office-manager agent, and to a department its lead agent — the rout
 not built. An application does not address agents; it exposes tools, and duties or people call
 them.
 
-## What the platform still owes before an application's tools are live for agents
+## What the kernel still owes before an application's tools are live for agents
 
 Recorded so the application is built to the contract and nothing is faked meanwhile. All are
-build-plan phase 7 items on the platform side.
+build-plan phase 7 items on the kernel side.
 
 | Owed | Why the application cannot do it alone | Until then |
 |---|---|---|
+| **Sign-on**: the launcher at `app.<domain>`, the hand-off token minted there, the sign-out notice, the `sso` paths on the application row | Identity is the kernel's | Build the receivers to the contract (`sign-on-and-directory.md` §1–2); test them with a token signed by hand; nobody can sign in until the kernel mints |
+| **The directory API** and the **application token**: reads, the change feed, HR's writes | The directory lives in the kernel's database | Mirror from hand-off claims only; the timer answers "not connected" when `OS_APPLICATION_TOKEN` is absent; HR's write screens refuse with that sentence |
+| **The chat endpoint** for the command bar | The ledger proxy, the runner and the grants are the kernel's | The bar says "The assistant is not connected yet" (§5) |
 | The renderers attach **bearer endpoints of applications from us** with `${BOS_RUN_TOKEN}` (today they attach only `app_key = 'platform'`) | The runner renders the MCP client config | An agent's client never reaches the application; a person's token does |
-| A **run-facts call** the application's read servers can make with the run token — is this an agent, is it an eval run, which tools does it hold on this endpoint | Grants live in the platform's database | Run tokens list and call no tools on the application (fail closed) |
+| A **run-facts call** the application's read servers can make with the run token — is this an agent, is it an eval run, which tools does it hold on this endpoint | Grants live in the kernel's database | Run tokens list and call no tools on the application (fail closed) |
 | The actions server **loads an application's registry** with its base URL and resolves entities through the application's `find_*` tools | One write door, one eval control | Action tools are not offered; a person uses the screens |
-| An **approval hook** an application handler can call (or the actions server pausing on the manifest's category before posting) | Policies and the approval queue live in the platform | Approval-category actions answer `pending_approval` with no request and log `.paused` (§2) |
-| A **ledger ingestion call** for model calls made by the application's own assistant | The platform's assistant writes ledger rows directly; an application cannot | The application records its assistant's calls in its own `prompt_ledger` with the platform's columns, to ship later |
+| An **approval hook** an application handler can call (or the actions server pausing on the manifest's category before posting) | Policies and the approval queue live in the kernel | Approval-category actions answer `pending_approval` with no request and log `.paused` (§2) |
+| `application_catalog.kind = 'ours'` | A migration on the kernel | Register as `external` by hand |
 | A skills path for `claude_agent_sdk` agents (Hermes reads `skills/`; the Claude harness is not yet told where they are) | Harness rendering | Application skills reach Hermes agents only |
+
+*Withdrawn 2026-09-22:* the ledger ingestion call for an application's own assistant — an
+application no longer makes model calls of its own (§5).
+
+Build order on the kernel, from the design: the cut → hosts → sign-on → the directory API → the
+ledger's period export → the chat endpoint → the rest of this table → HR.
