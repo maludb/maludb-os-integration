@@ -167,5 +167,6 @@ after the servers are up; **Access** tab: grant the owning department; **Experti
 the expert once hired in Agent HR and assign the skills (`php bin/import_skill.php --dir
 skills/<name> --email <admin>` on the kernel, then `skill_assign` at application scope).
 The **sign-on path** and **sign-out path** are fields on the application's form (and
-`application_save`'s `sso_path`, `sso_logout_path`) since 2026-09-22; the application token lands
-with the directory slice (`agents.md`, "What the kernel still owes").
+`application_save`'s `sso_path`, `sso_logout_path`) since 2026-09-22; the **application token** is minted
+on the application's Overview (a super-admin; shown once) and the **Directory** checkbox on the
+form is `directory.writes`.

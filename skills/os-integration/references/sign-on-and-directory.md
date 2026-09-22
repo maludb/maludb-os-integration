@@ -89,30 +89,40 @@ rule (super-admins only) and never the application's concern.
 
 ## 4. The directory API — reading the directory, and (HR only) changing it
 
-The kernel serves it on its internal port, `OS_INTERNAL_URL` (`http://127.0.0.1:8080`),
-under `/api/v1/directory/`. It is never on a public name. Every call carries
-`Authorization: Bearer ${OS_APPLICATION_TOKEN}` — the **application token** the installation
-agent minted at registration and wrote into `config/.env` — and a write also carries
-`X-Acting-Member: <member id>` of the signed-on person, whose kernel rights decide.
+*Built on the kernel 2026-09-22 (A4).* The kernel serves it on its internal port, `OS_INTERNAL_URL`
+(`http://127.0.0.1:8080`), under `/api/v1/directory/`. It is never on a public name. Every call
+carries `Authorization: Bearer ${OS_APPLICATION_TOKEN}` — the **application token** a super-admin
+mints on the application's Overview in the kernel (one live token; minting again replaces it;
+retiring the application revokes it) and writes into `config/.env` — and a write also carries
+`X-Acting-Member: <member id>` of the signed-on person, whose kernel rights decide. Bodies are JSON
+(`Content-Type: application/json`) or a form. One 401 sentence covers every token failure.
 
 | Call | Use it for | Who may |
 |---|---|---|
-| `GET members`, `GET departments` | A full refresh of the mirror (first run, or after a gap) | Every active application |
-| `GET changes?since=<cursor>` | The mirror's timer: every minute, apply changes, store the cursor (`directory_sync_state`, like the ingest checkpoint, under an advisory lock) | Every active application that declares `directory.reads` |
-| `POST members` | Create a human; the kernel sends the invitation | `directory.writes` declared, and the acting member passes the kernel's people rule |
-| `PATCH members/{id}` | Name, contact details, external flag, status, role `user` ↔ `dept_admin` | Same |
-| `POST` / `DELETE members/{id}/departments/{dept}` | Membership and the admin flag | Same |
-| `POST departments`, `PATCH departments/{id}` | Create, rename, re-parent, name the manager | Same; admin of the parent |
+| `GET members.php` | Every member (every kind and status) with their live departments — the mirror's full refresh | Every active application with a token |
+| `GET departments.php` | Every department (archived ones dated) and every live membership | Same |
+| `GET changes.php?since=<next>` | The mirror's timer: every minute, apply the rows, store `next` (`directory_sync_state`, like the ingest checkpoint, under an advisory lock). No `since` = the whole directory. Rows are current state, not events — a member carries its `status`, a membership its `left_at`, a department its `archived_at`; upsert, remove what has left. `next` is taken 10 s back, so a row may arrive twice | Same |
+| `POST members.php` | Invite a human: `email`, `business_role` (`user`/`dept_admin`), `department_id`, `message` → 202 `{status:"invited", invitation_id, email, expires_at}`; the kernel sends the invitation; the member appears in the feed once they register | `directory.writes` declared; the acting member is the super-admin or an admin of that department |
+| `PATCH members.php?id=<member>` | `display_name`, `job_title`, `phone`, `timezone`, `is_external`, `status` (`active`/`suspended`), `business_role` (`user` ↔ `dept_admin`) → `{member}` | `directory.writes`; the people rule (`app_can_admin_member`); never a super-admin, never an agent |
+| `POST memberships.php` | Add or update: `member_id`, `department_id`, `is_admin`, `is_primary` | `directory.writes`; an admin of that department |
+| `DELETE memberships.php` | Remove: `member_id`, `department_id` (dated with `left_at`, never erased) | Same |
+| `POST departments.php` | Create: `name`, `description`, `parent_id`, `manager_member_id` → 201 `{department}` | `directory.writes`; the super-admin, or an admin of the parent |
+| `PATCH departments.php?id=<department>` | Rename, re-parent (a cycle is refused), name the manager, describe | `directory.writes`; an admin of that department |
 
-The feed document carries `"schema": "os.directory-changes/1"`; it is additive within a major
-version. What an application can **never** do through it: grant a module or an application,
-mint or revoke a token, touch an agent, or set `super_admin`. HR proposes; a super-admin grants
-in the kernel.
+The feed document is `"schema": "os.directory-changes/1"` with `since`, `next`, `full`, `members[]`,
+`departments[]`, `memberships[]`; the lists are `os.directory/1`; both additive within a major
+version. A member row: `id, display_name, email, member_kind, business_role, is_external, status,
+job_title, phone, timezone, departments[{id,name,is_admin,is_primary}], updated_at`. A membership:
+`member_id, department_id, is_admin, is_primary, joined_at, left_at`. A department: `id, name,
+description, parent_id, manager_member_id, is_system, system_key, archived_at, updated_at`.
+
+What an application can **never** do through it: grant a module or an application, mint or revoke
+a token, touch an agent, or set `super_admin`. HR proposes; a super-admin grants in the kernel.
 
 **Writes are attributed to the person**, not to the application: the kernel logs
-`source = 'application'`, the application key and the acting member. Log the same event in the
-application's own `activity_log` with the kernel's `request_id` (returned in the response
-header) so the two trails join.
+`source = 'application'`, the acting member as actor, and `via_application` (the app key) in
+the row. Log the same event in the application's own `activity_log` with the kernel's
+`request_id` (returned in the response header) so the two trails join.
 
 ## 5. The command bar — the application's assistant runs in the kernel
 
@@ -147,7 +157,7 @@ endpoint above and let it answer *"The assistant is not connected yet"* when
 | Key | Meaning |
 |---|---|
 | `ACTION_TOKEN_KEY`, `ACTIONS_RELAY_KEY` | The tenant's; verify run tokens, hand-off tokens, sign-out notices, relayed actions |
-| `OS_APPLICATION_TOKEN` | This application's bearer for the directory, ledger and chat endpoints; shown once, stored hashed on the kernel; revoked when the application is retired |
+| `OS_APPLICATION_TOKEN` | This application's bearer for the directory, ledger and chat endpoints; minted on the application's Overview in the kernel, shown once, stored hashed there; one live token, rotated by minting again; revoked when the application is retired |
 | `OS_INTERNAL_URL` | `http://127.0.0.1:8080` |
 | `OS_LAUNCHER_URL` | `https://app.<domain>/` |
 | `APP_KEY` | This application's `catalog_key` — the audience of every token it accepts |
