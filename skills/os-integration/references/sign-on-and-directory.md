@@ -152,7 +152,26 @@ questions, with no model call the kernel cannot see: in practice, ship the bar w
 endpoint above and let it answer *"The assistant is not connected yet"* when
 `OS_APPLICATION_TOKEN` is absent.
 
-## 6. Environment the kernel gives an application
+## 6. The ledger feed — for the accounting application
+
+*Built on the kernel 2026-09-22 (A5).* The kernel keeps token accounting only and hands the
+accountant a period statement; it never posts a journal. An accounting application from us pulls
+the statement on its own timer with the same application token:
+
+```
+GET {OS_INTERNAL_URL}/api/v1/ledger/periods.php                 → {"schema":"os.ledger-periods/1","periods":[{period,status,closed_at,statement_lines,…}]}
+GET {OS_INTERNAL_URL}/api/v1/ledger/periods.php?period=2026-08  → the document os.ledger-period/1
+```
+
+The document: `period, period_start, period_end, status (open|closed), closed_at, currencies[],
+exchange, amount_scale, lines[{provider, model, department, agent, application, calls, late_calls,
+input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, amount, currency, note}],
+totals[{currency, calls, late_calls, input_tokens, output_tokens, amount}]`. Book a **closed**
+month once; an open month's lines still move. A late call — dated in a closed month, arrived after
+— is counted in the open month and flagged, never in the closed one. The same document is what a
+person downloads from the kernel's Statements screen, and what the `ledger_period` MCP tool answers.
+
+## 7. Environment the kernel gives an application
 
 | Key | Meaning |
 |---|---|
