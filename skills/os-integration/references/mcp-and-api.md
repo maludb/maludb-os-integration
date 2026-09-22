@@ -93,10 +93,11 @@ server never filters rows in Python by who is asking.
    **Grants, fail closed.** The kernel decides which tools an agent holds on an endpoint
    (`agent_tool_grants`); a person's token is never filtered. The application's read servers
    install the same `agent_grants` hook as the kernel's, but they cannot query the kernel's
-   database. Until the kernel exposes a run-facts call (`agents.md`, "What the kernel still
-   owes"), **a run token on an application's read server lists and calls no tools** — a person's
-   token works, an agent's is refused with the kernel's own sentence: *"'x' is not among the
-   tools this agent was granted on <endpoint>."* Never fail open here.
+   database: they ask the kernel's **run-facts call** (`agents.md`, A7 b) with the token the
+   caller presented — once per run id, cached — and offer exactly the tools it names for this
+   endpoint; `is_eval` means no write tool may act. A token the call does not vouch for lists and
+   calls no tools: *"'x' is not among the tools this agent was granted on <endpoint>."* Never
+   fail open here.
 
 ### What a tool returns
 
