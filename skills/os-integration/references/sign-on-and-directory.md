@@ -101,7 +101,7 @@ retiring the application revokes it) and writes into `config/.env` — and a wri
 |---|---|---|
 | `GET members.php` | Every member (every kind and status) with their live departments — the mirror's full refresh | Every active application with a token |
 | `GET departments.php` | Every department (archived ones dated) and every live membership | Same |
-| `GET changes.php?since=<next>` | The mirror's timer: every minute, apply the rows, store `next` (`directory_sync_state`, like the ingest checkpoint, under an advisory lock). No `since` = the whole directory. Rows are current state, not events — a member carries its `status`, a membership its `left_at`, a department its `archived_at`; upsert, remove what has left. `next` is taken 10 s back, so a row may arrive twice | Same |
+| `GET changes.php?since=<next>` | The mirror's timer: every minute, apply the rows, store `next` (`directory_sync_state`, like the ingest checkpoint, under an advisory lock). No `since` = the whole directory. Rows are current state, not events — a member carries its `status`, a membership its `left_at`, a department its `archived_at`; upsert, remove what has left. A deleted department has no row: `deleted_departments[]` (id, name, deleted_at) lists them since the cursor — every one ever on a full answer — and the mirror deletes that row by id. `next` is taken 10 s back, so a row may arrive twice | Same |
 | `POST members.php` | Invite a human: `email`, `business_role` (`user`/`dept_admin`), `department_id`, `message` → 202 `{status:"invited", invitation_id, email, expires_at}`; the kernel sends the invitation; the member appears in the feed once they register | `directory.writes` declared; the acting member is the super-admin or an admin of that department |
 | `PATCH members.php?id=<member>` | `display_name`, `job_title`, `phone`, `timezone`, `is_external`, `status` (`active`/`suspended`), `business_role` (`user` ↔ `dept_admin`) → `{member}` | `directory.writes`; the people rule (`app_can_admin_member`); never a super-admin, never an agent |
 | `POST memberships.php` | Add or update: `member_id`, `department_id`, `is_admin`, `is_primary` | `directory.writes`; an admin of that department |
@@ -110,7 +110,7 @@ retiring the application revokes it) and writes into `config/.env` — and a wri
 | `PATCH departments.php?id=<department>` | Rename, re-parent (a cycle is refused), name the manager, describe | `directory.writes`; an admin of that department |
 
 The feed document is `"schema": "os.directory-changes/1"` with `since`, `next`, `full`, `members[]`,
-`departments[]`, `memberships[]`; the lists are `os.directory/1`; both additive within a major
+`departments[]`, `memberships[]`, `deleted_departments[]` (id, name, deleted_at); the lists are `os.directory/1`; both additive within a major
 version. A member row: `id, display_name, email, member_kind, business_role, is_external, status,
 job_title, phone, timezone, departments[{id,name,is_admin,is_primary}], updated_at`. A membership:
 `member_id, department_id, is_admin, is_primary, joined_at, left_at`. A department: `id, name,
