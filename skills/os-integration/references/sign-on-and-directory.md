@@ -26,7 +26,7 @@ GET https://hr.subello.com/sso?token={member_id}.{expires}.{app_key}.{nonce}.{hm
 | `app_key` | The audience: the application's `catalog_key`. A token for HR opens nothing else |
 | `nonce` | 16 random bytes, hex. **Single use**: store it until `expires`; refuse a second presentation |
 | `hmac` | HMAC-SHA256 with the tenant's `ACTION_TOKEN_KEY` over `"sso:member.exp.app.nonce"` |
-| `claims` | A signed JSON body beside the token (same key, over the base64url text): `display_name`, `email`, `business_role`, `is_external`, `status`, `departments: [{id, name, is_admin}]`, `capability` (the grant: `read`/`write`/`admin`) |
+| `claims` | A signed JSON body beside the token (same key, over the base64url text): `member_id`, `display_name`, `email`, `business_role`, `is_external`, `status`, `departments: [{id, name, is_admin}]`, `capability` (the highest grant: `read`/`write`/`admin`), and since 2026-09-25 `role` (an unscoped application's own role, else null), `scopes: [{scope_id, kind, id, name, role, capability}]` (a scoped application: every site or department held, else []) and `scope` (the one chosen on the launcher, or null) — `scoped-applications.md` |
 
 The receiver, in order: verify both signatures with constant-time comparison; check `expires`;
 check `app_key` is this application; check the nonce is unused and record it; **upsert the
@@ -36,6 +36,12 @@ cookie for this exact host); log `member.sign_on` with `source = 'web'` and the 
 request id if `X-Request-Id` came; redirect to `/`. Any failure answers one page — *"This
 sign-on link has expired. Open the application from app.<domain> again."* — and logs
 `member.sign_on.refused` with the reason. Never distinguish the reasons to the visitor.
+
+A **scoped** application (`scoped-applications.md`) also stores `member_scope_roles` from `scopes` and
+opens the session at `scope`. The launcher sends `/launch/<id>?scope=<scope_id>` when a person picks
+one of several, and a scope the person does not hold is refused before a token is minted.
+
+The receiver in code, proven: `php-sign-on-kit.md` §4.
 
 **There is no login form.** `/login` on an application redirects to the launcher
 (`OS_LAUNCHER_URL` from `config/.env`). A visitor with no session on any other page is sent to
@@ -51,6 +57,11 @@ the launcher with `?app={catalog_key}` so it can come straight back.
   (§3) catches up within a minute.
 
 ## 3. The mirror — the application's `members` and `department_members`
+
+*Two profiles (2026-09-25).* An application **built for the kernel** makes these tables its identity: the
+kernel's ids are its ids. An **adopted** application (an existing one, skill `os-adopt`) keeps its own users
+table, which is referenced everywhere, adds these tables beside it, and links each user to the member with a
+unique `users.os_member_id`. Either way, the member id is what the tokens, the feed and MaluDB speak.
 
 The application's identity tables hold the **kernel's ids** and only these columns:
 
@@ -102,6 +113,7 @@ retiring the application revokes it) and writes into `config/.env` — and a wri
 | `GET members.php` | Every member (every kind and status) with their live departments — the mirror's full refresh | Every active application with a token |
 | `GET departments.php` | Every department (archived ones dated) and every live membership | Same |
 | `GET changes.php?since=<next>` | The mirror's timer: every minute, apply the rows, store `next` (`directory_sync_state`, like the ingest checkpoint, under an advisory lock). No `since` = the whole directory. Rows are current state, not events — a member carries its `status`, a membership its `left_at`, a department its `archived_at`; upsert, remove what has left. A deleted department has no row: `deleted_departments[]` (id, name, deleted_at) lists them since the cursor — every one ever on a full answer — and the mirror deletes that row by id. `next` is taken 10 s back, so a row may arrive twice | Same |
+| `GET scopes.php` *(2026-09-25)* | A scoped application's live scopes, its `scope_kind` and its declared `roles` — `{"schema":"os.directory-scopes/1", scope_kind, roles[], scopes[]}`; call it at install so every site or department exists before the first sign-in | Every active application with a token |
 | `POST members.php` | Invite a human: `email`, `business_role` (`user`/`dept_admin`), `department_id`, `message` → 202 `{status:"invited", invitation_id, email, expires_at}`; the kernel sends the invitation; the member appears in the feed once they register | `directory.writes` declared; the acting member is the super-admin or an admin of that department |
 | `PATCH members.php?id=<member>` | `display_name`, `job_title`, `phone`, `timezone`, `is_external`, `status` (`active`/`suspended`), `business_role` (`user` ↔ `dept_admin`) → `{member}` | `directory.writes`; the people rule (`app_can_admin_member`); never a super-admin, never an agent |
 | `POST memberships.php` | Add or update: `member_id`, `department_id`, `is_admin`, `is_primary` | `directory.writes`; an admin of that department |
@@ -110,7 +122,10 @@ retiring the application revokes it) and writes into `config/.env` — and a wri
 | `PATCH departments.php?id=<department>` | Rename, re-parent (a cycle is refused), name the manager, describe | `directory.writes`; an admin of that department |
 
 The feed document is `"schema": "os.directory-changes/1"` with `since`, `next`, `full`, `members[]`,
-`departments[]`, `memberships[]`, `deleted_departments[]` (id, name, deleted_at); the lists are `os.directory/1`; both additive within a major
+`departments[]`, `memberships[]`, `deleted_departments[]` (id, name, deleted_at), and since 2026-09-25 two lists
+about the calling application only — `scopes[]` (its sites or departments, a removed one with `removed_at`) and
+`access[]` (each affected member's whole holding, replacing the mirror's; nothing left = `capability` null and
+`scopes` []; apply it as `scoped-applications.md` §2 says); the lists are `os.directory/1`; both additive within a major
 version. A member row: `id, display_name, email, member_kind, business_role, is_external, status,
 job_title, phone, timezone, departments[{id,name,is_admin,is_primary}], updated_at`. A membership:
 `member_id, department_id, is_admin, is_primary, joined_at, left_at`. A department: `id, name,
@@ -200,3 +215,5 @@ person downloads from the kernel's Statements screen, and what the `ledger_perio
 - [ ] Directory timer on `GET changes` with a checkpoint and an advisory lock; full refresh on first run.
 - [ ] Writes (HR only): `X-Acting-Member`, `directory.writes` declared, the kernel's `request_id` copied into the local log.
 - [ ] Command bar posts to the kernel's chat endpoint; no model key anywhere in the application.
+- [ ] Scoped *(2026-09-25)*: `os_scopes` + `member_scope_roles` from the claims and the feed's `scopes[]`/`access[]`; the session's scope re-checked per request; every scoped row, view and tool filtered by the scopes held; structure never created in the application (`scoped-applications.md`).
+- [ ] Adopted *(2026-09-25)*: the application's own users table linked by `os_member_id`, the hand-off ending in the application's own login function, local sign-in/registration/reset retired while `OS_ENABLED` is on (skill `os-adopt`).

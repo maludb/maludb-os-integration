@@ -72,6 +72,14 @@ until the agent exists. Every value maps to a column the kernel already has.
   "directory": { "reads": true, "writes": false },
   "assistant": { "command_bar": true, "agent": "expert" },
 
+  "scopes": { "kind": "location" },
+  "roles": [
+    { "key": "admin",   "name": "Admin",   "capability": "admin", "is_admin": true },
+    { "key": "manager", "name": "Manager", "capability": "write" },
+    { "key": "user",    "name": "Staff",   "capability": "write" }
+  ],
+  "identity": { "profile": "adopted", "enabled_env": "OS_ENABLED" },
+
   "agents": [
     {
       "key": "expert",
@@ -122,6 +130,9 @@ until the agent exists. Every value maps to a column the kernel already has.
 | `sso` | *(2026-09-22)* `path` is where the launcher sends a person with the hand-off token; `logout_path` receives the kernel's sign-out notice. Recorded on the application row; the launcher reads them. **Required** — an application without `sso` cannot be signed in to. `sign-on-and-directory.md` §1–2 |
 | `directory` | *(2026-09-22)* `reads`: the application polls the change feed for its mirror. `writes`: it may call the directory's write endpoints as the acting person — **HR only**; the kernel refuses writes from an application that did not declare them. §4 |
 | `assistant` | *(2026-09-22)* `command_bar`: the application ships the voice-first bar; `agent`: the `key` of the shipped agent that answers it through the kernel's chat endpoint. §5 |
+| `scopes` | *(2026-09-25)* `{"kind": "location" \| "department"}` → `applications.scope_kind` through `application_save`. Leave it out for an unscoped application. After registration a super-admin adds the sites or departments it serves on its **Scopes** tab (`application_scope_add`). The application creates each one on its next sync. `scoped-applications.md` |
+| `roles` | *(2026-09-25)* The application's own roles, ordered; each `key`, `name`, `capability` (`read`/`write`/`admin`) and exactly one `is_admin` → `application_roles` through `application_roles_set` (super-admin). Grants then name a role, and the capability is the role's. Optional: without roles, grants carry a capability as before |
+| `identity` | *(2026-09-25)* `profile`: `native` (the kernel's ids are the application's ids, the default) or `adopted` (an existing application: its own users table linked by `os_member_id`, skill `os-adopt`); `enabled_env`: the env key that turns the kernel's sign-on on, `OS_ENABLED` by convention. The installer writes `OS_ENABLED=1` |
 | `agents[]` | *(2026-09-22, generalises `expert`)* One entry per agent the application ships; the first is the **expert**. Each is a proposal: a `user`-role agent in the owning department, `job_description` as its prompt, an `application_access` grant at `access_capability`, one `agent_tool_grants` row per tool named — on this application's endpoints for read tools, on the kernel's Actions MCP for action tools — and its `skills` assigned. A super-admin confirms each in one click (model, budget, manager). `applications.sme_agent_member_id` is set from the first entry. A bare `expert` block is still accepted as a one-entry list |
 | `approvals[]` | The manifest's "Agent approval" column, restated for the installer; when the kernel's approval hook lands these become `approval_policies` rows (`applies_to = 'agents'`, `action_pattern` = the action's log event). Until then, `agents.md` §2 applies. |
 
@@ -143,21 +154,18 @@ agent's monitor reads the body.
 
 ## Installation order (what the agent does, in this order)
 
-1. Pull the release; read `maludb-os.json`; refuse if `schema` is unknown.
-2. Database and roles; migrations; `config/.env`.
-3. Apache virtual host and internal port; certificate; reload.
-4. Services; wait for each MCP server to answer `initialize` on its port.
-5. Register the application, then its endpoints (only the ones now answering), `status = 'active'`;
-   record the `sso` paths on the application row.
-6. Mint the **application token**, write it into the application's `config/.env` as
-   `OS_APPLICATION_TOKEN` with `OS_INTERNAL_URL`, `OS_LAUNCHER_URL` and `APP_KEY`; restart the services.
-7. Ingest and assign skills; copy the action registry.
-8. Propose every agent in `agents[]`, the expert first; leave them for a super-admin to confirm.
-9. Run the health check; sign a test hand-off token and confirm `sso.path` refuses it once expired; record both.
+The skill `os-install` carries this order as a runbook, with a check after each step and the kernel action that performs it.
 
-Every step logs to the kernel's `activity_log` (`application.install`, `application_endpoint.save`,
-`skill.import`, `agent.propose` …) as the installation agent's member — it is an agent like any
-other, and its trail is how the owner sees what was done.
+1. Pull the release; read `maludb-os.json`; refuse if `schema` is unknown or `sso` is missing.
+2. Database and roles; migrations; `config/.env` (the tenant's `ACTION_TOKEN_KEY` and `ACTIONS_RELAY_KEY` copied, `OS_ENABLED=1` for an adopted application).
+3. Apache virtual host and internal port; certificate; reload.
+4. Services and timers; wait for each MCP server to answer `initialize` on its port.
+5. Register: the catalog entry (`application_catalog_save`, kind `ours`), the application (`application_save` with `url`, `sso_path`, `sso_logout_path`, `directory_writes`, `scope_kind`), its roles (`application_roles_set`), then its endpoints (`application_endpoint_save`, only the ones now answering); `status = 'active'` (`application_set_status`).
+6. Mint the **application token** (`application_token_mint`, super-admin; the value is in that answer only) and write it into the application's `config/.env` as `OS_APPLICATION_TOKEN` with `OS_INTERNAL_URL`, `OS_LAUNCHER_URL` and `APP_KEY`; restart the services.
+7. Scoped: add the sites or departments it serves (`application_scope_add` — a site is created first on Work Locations, `location_save` kind `site`, if the owner named new ones); then grant people per scope and role (`application_access_grant` with `scope`, `role`, and a member, a department or `residents`). Run the application's directory sync once with `--full`.
+8. Ingest and assign skills (`bin/import_skill.php`, `skill_assign` at application scope); copy the action registry to `mcp/registries/<app_key>.json` on the kernel and restart `certstudy-actions-mcp`.
+9. Propose every agent in `agents[]`, the expert first; leave them for a super-admin to confirm (and grant each per scope on a scoped application).
+10. Run the health check; prove sign-on with a real launch (a granted person reaches their scope, a scope not held is refused, a replayed token is refused); record the proofs.
 
 ## Registering by hand, today
 

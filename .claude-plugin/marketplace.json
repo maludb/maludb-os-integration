@@ -7,7 +7,7 @@
     {
       "name": "maludb-os-integration",
       "source": "./",
-      "description": "Prepares an application for integration into the MaluDB Business OS: memory storage, MCP/API coverage, and the agent interface"
+      "description": "Fits applications into the MaluDB Business OS: the integration contract, adopting existing apps, and installing them beside the kernel"
     }
   ]
 }
