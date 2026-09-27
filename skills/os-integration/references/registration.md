@@ -66,7 +66,7 @@ until the agent exists. Every value maps to a column the kernel already has.
     "base_url_env": "APP_INTERNAL_PORT"
   },
 
-  "skills": ["skills/reservations-basics", "skills/reservations-booking-rules"],
+  "skills": ["skills/reservations-basics", "skills/reservations-booking-rules", "skills/reservations-close-of-day"],
 
   "sso": { "path": "/sso", "logout_path": "/sso/logout" },
   "directory": { "reads": true, "writes": false },
@@ -166,6 +166,27 @@ The skill `os-install` carries this order as a runbook, with a check after each 
 8. Ingest and assign skills (`bin/import_skill.php`, `skill_assign` at application scope); copy the action registry to `mcp/registries/<app_key>.json` on the kernel and restart `certstudy-actions-mcp`.
 9. Propose every agent in `agents[]`, the expert first; leave them for a super-admin to confirm (and grant each per scope on a scoped application).
 10. Run the health check; prove sign-on with a real launch (a granted person reaches their scope, a scope not held is refused, a replayed token is refused); record the proofs.
+
+## Runbooks — the application's generic skills (0.4.1, 2026-09-27)
+
+A **runbook** is a skill the application ships for the work around it — close of day, month-end,
+onboarding a site, recovering from a failed sync — rather than one narrow job. It is an ordinary
+skill folder under `skills/` whose `SKILL.md` frontmatter says `kind: runbook`:
+
+```markdown
+---
+name: reservations-close-of-day
+description: How the restaurant closes the reservations day — no-shows, deposits, tomorrow's sheet.
+kind: runbook
+---
+```
+
+List it in `maludb-os.json` `skills` like any other. The kernel imports it, records its kind
+(db/153), and assigns it at **application scope**, so it reaches the application's expert and every
+agent that may use the application at their next run. On the application's page the kernel shows
+runbooks apart from the narrower skills, and a person can **give a runbook to one agent** from
+there — it then appears in that agent's Skills tab as its own, with the application as its source.
+A skill without `kind:` is a skill; any other value is refused at import.
 
 ## Registering by hand, today
 
