@@ -1,6 +1,6 @@
 ---
 name: os-integration
-description: Prepare an application for integration into the MaluDB Business OS kernel — including a scoped one that serves several sites (a restaurant each) or several departments — — how its memories must be stored (record memory in PostgreSQL 17 with mcp_* visibility views; activity memory as an activity_log shipped to the tenant's MaluDB), how its MCP servers and action manifest must cover every question and every action, how the kernel signs people in (the hand-off token, the directory mirror, the directory API), and how the kernel's agents reach it (run tokens, tool grants, approvals, the ledger, skills, the shipped expert, the command bar through the kernel's chat endpoint, the maludb-os.json registration). Use when building or auditing an Apache/PHP/HTMX application that will be installed beside the Business OS on a tenant's server, when the user says "integrate with the OS", "make this app agent-ready", "prepare for the installation agent", or asks how an app should expose memory, MCP, sign-on or agents to the platform.
+description: Prepare an application for integration into the MaluDB Business OS kernel — including a scoped one that serves several sites (a restaurant each) or several departments, and its own roles and rights published to the kernel (app_roles) and granted by the super-admin — how its memories must be stored (record memory in PostgreSQL 17 with mcp_* visibility views; activity memory as an activity_log shipped to the tenant's MaluDB), how its MCP servers and action manifest must cover every question and every action, how the kernel signs people in (the hand-off token, the directory mirror, the directory API), and how the kernel's agents reach it (run tokens, tool grants, approvals, the ledger, skills, the shipped expert, the command bar through the kernel's chat endpoint, the maludb-os.json registration). Use when building or auditing an Apache/PHP/HTMX application that will be installed beside the Business OS on a tenant's server, when the user says "integrate with the OS", "make this app agent-ready", "prepare for the installation agent", or asks how an app should expose memory, MCP, sign-on or agents to the platform.
 ---
 
 # Preparing an application for the Business OS
@@ -17,7 +17,7 @@ with the `htmx-php-builder` plugin — that plugin governs how the app is built;
 how it **fits**. The design it implements: *Business OS — Kernel and Integration Design*
 (2026-09-22), `docs/business-os-integration.md` on the platform.
 
-## The five things the kernel expects
+## What the kernel expects
 
 | Expectation | Reference | One-line test |
 |---|---|---|
@@ -25,7 +25,8 @@ how it **fits**. The design it implements: *Business OS — Kernel and Integrati
 | **MCP and APIs cover the functionality** — a records server and an activity server the app runs, one named tool per recurring question plus one guarded search each, an action manifest for every button, JSON-mode handlers that report `emit_action_status()` and return a `record_id`-able location | [references/mcp-and-api.md](references/mcp-and-api.md) | "Is there anything a screen can do that an agent cannot ask for or do?" |
 | **The kernel signs people in** — no password, no login form; a hand-off token (60 s, single use, audience-bound) opens the app's own session; a mirror of the directory with the kernel's ids, refreshed by the change feed; HR alone changes the directory, through the directory API, as the acting person | [references/sign-on-and-directory.md](references/sign-on-and-directory.md) | "If the kernel deactivated this person a minute ago, is every door here already shut?" |
 | **Agents can work here safely** — the tenant's run token is honoured everywhere with the shared `ACTION_TOKEN_KEY`/`ACTIONS_RELAY_KEY`; grants fail closed; approval-category actions pause for agents; the command bar runs the app's expert *in the kernel*; no model key, no credential, no secret ever leaves | [references/agents.md](references/agents.md) | "If an agent held this app's tools, what could it do that a person did not decide?" |
-| **Scopes are the kernel's** *(2026-09-25)* — an application that keeps separate data per site or per department declares `scopes` and its own `roles`; the kernel grants people per scope and role; the application mirrors its scopes and each member's holding from the claims and the feed, and filters every row, view and tool by the scopes held | [references/scoped-applications.md](references/scoped-applications.md) | "If a person was granted only Airport, can anything here show them Downtown?" |
+| **Roles and rights are the application's, granted by the kernel** *(2026-09-27)* — the application publishes its roles and the rights each gives through its records MCP server (`app_roles`, `os.app-roles/1`) and admits the kernel's own token to that tool alone; the super-admin grants a person any set of roles; the claims, the feed's `access[]` and run facts carry `roles` and `rights`; the application enforces rights from its own catalogue | [references/roles-and-rights.md](references/roles-and-rights.md) | "If the super-admin changed this person from Payroll to Employee a minute ago, can they still run pay here?" |
+| **Scopes are the kernel's** *(2026-09-25)* — an application that keeps separate data per site or per department declares `scopes`; the kernel grants people per scope with roles the application publishes; the application mirrors its scopes and each member's holding from the claims and the feed, and filters every row, view and tool by the scopes held | [references/scoped-applications.md](references/scoped-applications.md) | "If a person was granted only Airport, can anything here show them Downtown?" |
 | **It declares itself** — `maludb-os.json` at the repo root with `sso`, `directory`, `assistant` and `agents[]`; shipped skills in `skills/`; each agent's job description under `os/`; a health endpoint | [references/registration.md](references/registration.md) | "Could the installation agent install, register, sign people in and propose the agents from the repo alone?" |
 
 ## Code and tests you can copy
@@ -42,7 +43,7 @@ An **existing** application (one not built for the kernel) is fitted by the skil
    missing. Do not assume it matches the kernel — the kernel's own conventions moved
    (`source = 'web'` not `'ui'`; ids re-aliased `<entity>_id`; views gated in SQL, not Python;
    no built-in business modules since 2026-09-22).
-2. **Produce a gap list against the five references**, in the order above — memory first,
+2. **Produce a gap list against the references above**, in the order above — memory first,
    because activity memory cannot be backfilled and every later step depends on `app.member_id`
    meaning the kernel's member. Each gap names the file to change and the kernel rule it
    violates. Where a reference says a kernel-side change is *owed*, do not build a substitute
@@ -51,7 +52,9 @@ An **existing** application (one not built for the kernel) is fitted by the skil
    + the ingest bridge → the `mcp_*` views → the two read servers → the action manifest,
    registry and JSON-mode handlers → identity (the mirror tables with the kernel's ids; the
    `/sso` and `/sso/logout` receivers; the login form removed; the directory timer; HR's writes;
-   when scoped, `os_scopes` + `member_scope_roles` and the scope filter in every view and tool)
+   when scoped, `os_scopes` + `member_scope_roles` and the scope filter in every view and tool;
+   the roles catalogue, `app_roles`, the kernel token admitted to it, `members.roles` from the
+   claims and `access[]`, and the rules asking `app_has_right()`)
    → the command bar wired to the kernel's chat endpoint → `maludb-os.json`, skills, `os/*.md`,
    `/api/v1/health` → Apache vhost and systemd units under `deploy/`.
 4. **Prove it** before calling it done: every migration applies clean on an empty database;

@@ -37,11 +37,11 @@ The references are written from the platform's code as of 2026-09-21, revised to
 design of 2026-09-22, and say plainly which kernel-side pieces are still owed (build-plan
 phase 7) so an application is built to the contract and nothing is faked in the meantime.
 
-## The three skills (0.3.0, 2026-09-25)
+## The three skills (0.4.0, 2026-09-27)
 
 | Skill | Use it when | It produces |
 |---|---|---|
-| `os-integration` | Building a new application for the kernel, or auditing one. It holds the contract: memory, MCP, sign-on and the directory, **scoped applications** (one installation serving several sites or departments, with the application's own roles granted per scope), agents, registration | Code to the contract. `references/php-sign-on-kit.md` has proven PHP to copy, and `references/testing-without-a-kernel.md` shows how to prove sign-on and scopes on a server with no kernel |
+| `os-integration` | Building a new application for the kernel, or auditing one. It holds the contract: memory, MCP, sign-on and the directory, **scoped applications** (one installation serving several sites or departments), **roles and rights** (the application publishes its roles and what each lets its holder do through `app_roles`; the super-admin grants any set of them; the application enforces), agents, registration | Code to the contract. `references/php-sign-on-kit.md` has proven PHP to copy, and `references/testing-without-a-kernel.md` shows how to prove sign-on and scopes on a server with no kernel |
 | `os-adopt` | An **existing** application with its own login, users and perhaps tenants (a restaurant each) is to be run from the kernel | A branch in the application's repository. Its users are linked to the kernel's members and its tenants to kernel scopes, the kernel's hand-off token ends in the application's own login function, and everything sits behind one `OS_ENABLED` flag, so the application still runs standalone |
 | `os-install` | A repository with a `maludb-os.json` is to be installed on a kernel's server | The application running at `<label>.<domain>`, registered in the kernel (catalog entry, application, roles, endpoints, token, scopes, grants), its expert proposed, and sign-on proven end to end |
 
@@ -80,4 +80,5 @@ values, or who runs the actions server), this plugin is the platform's current w
 .claude-plugin/marketplace.json     this repo as a marketplace
 skills/os-integration/SKILL.md      the skill: what the platform expects, how to work, non-negotiables
 skills/os-integration/references/   memory.md · mcp-and-api.md · sign-on-and-directory.md · agents.md · registration.md
+                                    scoped-applications.md · roles-and-rights.md · php-sign-on-kit.md · testing-without-a-kernel.md
 ```

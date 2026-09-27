@@ -12,9 +12,9 @@ them. The application owns what happens inside.
 | **Scope kind** | What one installation is partitioned by: `none` (one set of data — HR), `location` (each **site**), `department` (each department). Declared in `maludb-os.json` → `scopes.kind`. |
 | **Site** | A kernel location of kind `site`: a place the business trades from (a restaurant, a shop, a branch). It is not a machine. It has a `name`, an `address` and an IANA `timezone`, and people and agents *reside* at it. |
 | **Scope** | One site or one department that this installation serves, identified by the kernel's `scope_id`. A super-admin adds scopes on the application's **Scopes** tab (`application_scope_add`). |
-| **Role** | The application's own word for what someone may do (`admin`, `manager`, `user`), declared in `maludb-os.json` → `roles`. Each role **amounts to** a kernel capability (`read`/`write`/`admin`). Exactly one role is `is_admin`: a super-admin holds it in every scope. |
-| **Grant** | Kernel-side, one per scope. It names a scope and a role, and goes to a member, a department (its live members), or **everyone residing at a site**. Nobody holds anything by default: **application users are not OS users**. |
-| **Holding** | Everything one member holds on this application: on a scoped application, `[{scope_id, role, capability}]`, one entry per scope and the best one where routes overlap. |
+| **Role** | The application's own word for what someone may do (`admin`, `manager`, `user`), **published by the application** through `app_roles` since 0.4.0 (`roles-and-rights.md`), with the rights it gives. Each role **amounts to** a kernel capability (`read`/`write`/`admin`). Exactly one role is `is_admin`: a super-admin holds it in every scope. |
+| **Grant** | Kernel-side, one per scope. It names a scope and a **set** of roles (0.4.0; one before), and goes to a member, a department (its live members), or **everyone residing at a site**. Nobody holds anything by default: **application users are not OS users**. |
+| **Holding** | Everything one member holds on this application: on a scoped application, `[{scope_id, role, roles, rights, capability}]`, one entry per scope; `role` is the highest of `roles`. |
 
 ## 1. What the application declares
 
@@ -28,9 +28,10 @@ them. The application owns what happens inside.
 ```
 
 - `scopes.kind` is `location` or `department`. Leave the block out for an unscoped application.
-- `roles` may appear without `scopes`: an unscoped application with its own roles. The claims then carry `role`.
-- Role keys must match `^[a-z][a-z0-9_]{0,39}$`. The list is ordered, and where two grants reach one scope with the same capability, the role listed first wins.
-- The installer writes `scope_kind` with `application_save` and the roles with `application_roles_set` (super-admin).
+- **Since 0.4.0 the roles are not declared here**: the application publishes them through `app_roles` and the kernel reads them (`application_roles_refresh`) — `roles-and-rights.md`. The `roles` block above is what 0.3.0 wrote with `application_roles_set`; it still works for an application that cannot publish.
+- Roles work without `scopes`: an unscoped application with its own roles. The claims then carry `role`, `roles` and `rights`.
+- Role keys must match `^[a-z][a-z0-9_]{0,39}$`. The list is ordered; `role` names the highest of a holding's roles (capability first, then this order).
+- The installer writes `scope_kind` with `application_save`, then — after the endpoints — reads the roles with `application_roles_refresh` (super-admin).
 
 ## 2. What the application receives
 
@@ -39,8 +40,9 @@ them. The application owns what happens inside.
 ```json
 "capability": "write",                         // the highest capability held (unchanged meaning)
 "role": null,                                  // unscoped application with roles: the member's role
+"roles": ["manager", "user"], "rights": ["tables.book", "floor.manage"],   // 0.4.0: every role held, and what they give
 "scopes": [ {"scope_id": 9, "kind": "location", "id": 21, "name": "Airport",
-             "role": "manager", "capability": "write"} ],
+             "role": "manager", "roles": ["manager", "user"], "rights": ["tables.book", "floor.manage"], "capability": "write"} ],
 "scope": 9                                     // the scope chosen on the launcher; null when several and none chosen
 ```
 
@@ -53,7 +55,7 @@ them. The application owns what happens inside.
 | List | Row | Apply it |
 |---|---|---|
 | `scopes[]` | `scope_id, kind, location_id, department_id, name, address, timezone, removed_at, updated_at` | Upsert your tenant row (the restaurant) by `scope_id`. Its name, address and time zone follow the kernel's. When `removed_at` is set, **close** it: no one reaches it any more. Keep its data, because the kernel removing a scope is not a request to delete bookings. |
-| `access[]` | `member_id, role, capability, scopes[{scope_id, role, capability}]` | **Replace** that member's holding. With `scopes: []` and `capability: null` they hold nothing now: remove their access and end their sessions. A row for a member your mirror does not know **and** who holds nothing is ignored. |
+| `access[]` | `member_id, role, roles, rights, capability, scopes[{scope_id, role, roles, rights, capability}]` | **Replace** that member's holding. With `scopes: []` and `capability: null` they hold nothing now: remove their access and end their sessions. A row for a member your mirror does not know **and** who holds nothing is ignored. |
 
 - A full answer (no `since`) lists every live scope and every member who holds anything.
 - A `since` answer lists every scope that changed and every member whose holding **may** have changed. That covers grants, revocations, expiries, department moves, residency changes, status changes and scope removals. Apply the list in order; rows may repeat because of the 10-second overlap.

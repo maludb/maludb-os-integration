@@ -264,17 +264,31 @@ function mirror_apply_member_from_claims(PDO $pdo, int $memberId, array $claims)
                        ON CONFLICT (member_id, department_id) DO UPDATE SET is_admin = EXCLUDED.is_admin, left_at = NULL')
             ->execute(['m' => $memberId, 'd' => (int) $d['id'], 'a' => !empty($d['is_admin']) ? 't' : 'f']);
     }
-    // An unscoped application with its own roles: keep $claims['role'] in your own member-role column.
+    // Roles (0.4.0, roles-and-rights.md): every role held, filtered to the ones this application publishes.
+    if (array_key_exists('roles', $claims)) {
+        mirror_apply_roles($pdo, $memberId, is_array($claims['roles']) ? $claims['roles'] : []);
+    }
 }
 
-/** Replace a member's holding on a scoped application: [{scope_id, role, capability}, …]. */
+/** members.roles from the claims or an access[] row — only the roles this application offers (app_roles' catalogue). */
+function mirror_apply_roles(PDO $pdo, int $memberId, array $roles): void
+{
+    $known = $pdo->query('SELECT role_key FROM app_roles')->fetchAll(PDO::FETCH_COLUMN);
+    $keep = array_values(array_intersect(array_unique(array_map('strval', $roles)), $known));
+    $pdo->prepare('UPDATE members SET roles = CAST(:r AS text[]), synced_at = now() WHERE id = :m')
+        ->execute(['r' => '{' . implode(',', $keep) . '}', 'm' => $memberId]);
+}
+
+/** Replace a member's holding on a scoped application: [{scope_id, role, roles, capability}, …] (roles: 0.4.0). */
 function mirror_apply_holding(PDO $pdo, int $memberId, array $scopes): void
 {
     $pdo->prepare('DELETE FROM member_scope_roles WHERE member_id = :m')->execute(['m' => $memberId]);
-    $ins = $pdo->prepare('INSERT INTO member_scope_roles (member_id, scope_id, role_key, capability)
-                          SELECT :m, :s, :r, :c WHERE EXISTS (SELECT 1 FROM os_scopes WHERE scope_id = :s AND removed_at IS NULL)');
+    $ins = $pdo->prepare('INSERT INTO member_scope_roles (member_id, scope_id, role_key, roles, capability)
+                          SELECT :m, :s, :r, CAST(:rs AS text[]), :c WHERE EXISTS (SELECT 1 FROM os_scopes WHERE scope_id = :s AND removed_at IS NULL)');
     foreach ($scopes as $s) {
-        $ins->execute(['m' => $memberId, 's' => (int) $s['scope_id'], 'r' => $s['role'] ?? null, 'c' => (string) $s['capability']]);
+        $roles = is_array($s['roles'] ?? null) ? $s['roles'] : (($s['role'] ?? null) !== null ? [$s['role']] : []);
+        $ins->execute(['m' => $memberId, 's' => (int) $s['scope_id'], 'r' => $s['role'] ?? null,
+                       'rs' => '{' . implode(',', array_map('strval', $roles)) . '}', 'c' => (string) $s['capability']]);
     }
 }
 
@@ -305,6 +319,7 @@ function mirror_apply_access(PDO $pdo, array $rows): void
         }
         $pdo->prepare('UPDATE members SET capability = :c, synced_at = now() WHERE id = :m')
             ->execute(['c' => $a['capability'] ?? null, 'm' => $memberId]);
+        mirror_apply_roles($pdo, $memberId, ($a['capability'] ?? null) === null ? [] : (array) ($a['roles'] ?? []));   // 0.4.0
         mirror_apply_holding($pdo, $memberId, $a['scopes'] ?? []);
         if (($a['capability'] ?? null) === null) {
             end_member_sessions($pdo, $memberId, 'directory');

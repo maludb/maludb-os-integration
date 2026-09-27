@@ -107,6 +107,10 @@ sub-results: `{"application": […], "endpoints": […]}`. Every list tool takes
 `limit: int = Field(25, ge=1, le=100)` as its last positional SQL argument; detail tools cap
 children (`interactions_limit`); unparameterised lists hard-cap at 200.
 
+**One tool every records server carries** *(0.4.0)*: `app_roles`, with no arguments. It answers the
+application's roles and the rights each gives (`os.app-roles/1`), and it is the one tool the kernel's
+own token may reach. See `roles-and-rights.md`.
+
 ## 2. Designing the tool surface (before any code)
 
 Derive it from the application's **question inventory** — every recurring question a screen
@@ -299,4 +303,5 @@ The kernel's registry knows the two proxied servers by URL under the application
 - [ ] Action manifest → builder → `mcp/action_registry.json` with entity `resolve` entries; `record_id` on every create; partial updates.
 - [ ] Handlers report through `emit_action_status()`; JSON mode; token + relay verified; token replaces CSRF; every write logged.
 - [ ] Members mirror the kernel's ids; no passwords, no login form; `/sso` and `/sso/logout` receivers; directory timer.
+- [ ] `app_roles` on the records server; the kernel's token admitted to it alone (`roles-and-rights.md`).
 - [ ] Apache: `/mcp/records` and `/mcp/activity` proxied with `ProxyPreserveHost Off`; PHP on a loopback internal port.

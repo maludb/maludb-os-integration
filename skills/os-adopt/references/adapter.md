@@ -101,14 +101,18 @@ Follow `../os-integration/references/registration.md`. For an adopted, scoped ap
 "sso": { "path": "/sso", "logout_path": "/sso/logout" },
 "directory": { "reads": true, "writes": false },
 "scopes": { "kind": "location" },
-"roles": [ {"key": "admin", "name": "Admin", "capability": "admin", "is_admin": true},
-           {"key": "manager", "name": "Manager", "capability": "write"},
-           {"key": "user", "name": "Staff", "capability": "write"} ],
 "identity": { "profile": "adopted", "enabled_env": "OS_ENABLED" }
 ```
 
 Plus `catalog_key`, `vhost` (`document_root` as the application has it), `database`, `env`,
 `services` (the sync timer), `endpoints`, and `agents` when an expert is written.
+
+**Roles (0.4.0).** The application's roles are not declared in `maludb-os.json` any more. Map the roles the
+application already has (`user_restaurants.role`: admin, manager, staff) to a catalogue with the rights
+each gives, publish it through `app_roles` on the records MCP server, and admit the kernel's token to that
+tool — `../os-integration/references/roles-and-rights.md`. The kernel then grants any set of them per
+scope, and the adapter writes the tenant membership row's role from `scopes[].role` (the highest) or
+`scopes[].roles`.
 
 An application with no MCP servers yet declares the endpoints it has. For example, ZozoCal's admin
 MCP at `/api/mcp/admin.php` is `auth_kind: bearer`. Record the memory and MCP parts of the contract

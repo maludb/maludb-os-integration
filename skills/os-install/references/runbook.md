@@ -85,10 +85,9 @@ the kernel's `bin/app_install.php plan|apply` exists, build plan C4, use it inst
    "url": "https://<label>.DOM", "sso_path": "/sso", "sso_logout_path": "/sso/logout",
    "scope_kind": "location", "location": "<the office id it runs on>", "owner_department": "<id>", "version": "1.0.0"}},
  {"lookup": {"app": "SELECT id FROM applications WHERE app_key = 'KEY'"}},
- {"tool": "application_roles_set", "args": {"application": "{{app}}",
-   "roles": "[{\"key\":\"admin\",\"name\":\"Admin\",\"capability\":\"admin\",\"is_admin\":true},{\"key\":\"manager\",\"name\":\"Manager\",\"capability\":\"write\"},{\"key\":\"user\",\"name\":\"Staff\",\"capability\":\"write\"}]"}},
  {"tool": "application_endpoint_save", "args": {"application": "{{app}}", "name": "Records MCP", "kind": "mcp",
    "url": "https://<label>.DOM/mcp/records", "auth_kind": "bearer", "agent_reachable": "1", "mcp_surface_version": "1.0"}},
+ {"tool": "application_roles_refresh", "args": {"application": "{{app}}"}},
  {"tool": "application_set_status", "args": {"application": "{{app}}", "status": "active"}}
 ]
 ```
@@ -97,7 +96,7 @@ the kernel's `bin/app_install.php plan|apply` exists, build plan C4, use it inst
 cd "$K/mcp" && venv/bin/python smoke_actions.py run /path/to/register.json "$SA"
 ```
 
-- **Check:** the application page in the kernel shows the sign-on paths, *Serves*, the roles and the endpoints.
+- **Check:** the application page in the kernel shows the sign-on paths, *Serves*, the endpoints, and the roles **with their rights**, read from the application (0.4.0: the roles come from its `app_roles` tool, which needs the records server running and its endpoint registered first; an application that cannot publish them gets `application_roles_set` instead).
 - **Every step must answer `ok`.** A refusal carries the kernel's own sentence. Fix the cause and
   re-run only what is left. `application_save` with the same key refuses, which is idempotency by design.
 
@@ -136,8 +135,8 @@ Run it as root (`sudo -E`, with `SA`, `APP`, `KEY` and `A` exported): the applic
              "ap": "SELECT id FROM locations WHERE kind = 'site' AND name = 'Airport'"}},
  {"tool": "application_scope_add", "args": {"application": "{{app}}", "location": "{{ap}}"}},
  {"lookup": {"sap": "SELECT id FROM application_scopes WHERE application_id = {{app}} AND location_id = {{ap}} AND removed_at IS NULL"}},
- {"tool": "application_access_grant", "args": {"application": "{{app}}", "residents": "{{ap}}", "scope": "{{sap}}", "role": "user"}},
- {"tool": "application_access_grant", "args": {"application": "{{app}}", "member": "<the owner-named manager>", "scope": "{{sap}}", "role": "manager"}}
+ {"tool": "application_access_grant", "args": {"application": "{{app}}", "residents": "{{ap}}", "scope": "{{sap}}", "roles": "user"}},
+ {"tool": "application_access_grant", "args": {"application": "{{app}}", "member": "<the owner-named manager>", "scope": "{{sap}}", "roles": "manager,user"}}
 ]
 ```
 
