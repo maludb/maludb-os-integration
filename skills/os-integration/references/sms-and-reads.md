@@ -34,7 +34,8 @@ A **provider** declares what it shares; a **consumer** declares what it wants to
 connection (`bin/app_connection.php list|approve|revoke`, logged `application_connection.approve|revoke`).
 
 ```json
-"shares": [ { "tool": "covers_by_service", "description": "Booked covers per date and service at one restaurant", "scoped": true } ],
+"shares": [ { "tool": "covers_by_service", "description": "Booked covers per date and service at one restaurant", "scoped": true },
+             { "tool": "time_off_taken", "description": "Approved time off per member", "scoped": true, "people": true } ],
 "reads":  [ { "app": "reservations", "tool": "covers_by_service", "why": "Expected covers for the staffing forecast" } ]
 ```
 
@@ -49,6 +50,11 @@ POST {OS_INTERNAL_URL}/api/v1/apps/read.php
 `shares[]`** — nothing else. A `scoped` share receives the argument `scope_id`: **your own** scope id for the site the
 consumer named, set by the kernel (any `scope_id` the consumer sent is replaced). Answer about the site, never about a
 person: no member identity crosses. Keep answers small (the kernel refuses more than 256 kB).
+
+**A share about people** — `"people": true` on the share (0.5.1). It answers about members, keyed by the kernel's member
+id, for people at the named site only, and the kernel lets **only an application registered for directory writes (HR)**
+read it: any other consumer's connection is refused at approval and the call answers 403 `people_restricted`. A facts-
+about-a-site share needs no flag; if it names a person it needs one.
 
 **Consumer.** Name the kernel `location_id` of a site both applications serve (your mirror of the scope carries it).
 Treat `no_connection` as "not approved yet" and degrade (e.g. let a manager type the forecast). Nothing writes across:
