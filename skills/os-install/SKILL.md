@@ -35,6 +35,14 @@ step-by-step commands are in [references/runbook.md](references/runbook.md).
 4. **Ask before anything destructive.** That covers an existing `/srv/apps/<key>`, an existing
    database of that name, an enabled vhost of that name, or a port already taken. Stop and ask.
 
+## The installer does the order below (2026-09-28)
+
+The kernel carries `bin/app_install.php plan|apply <repository>` (runbook §4): `plan` is read-only and
+says, step by step, what is done and what would be done; `apply` (root) does what is not yet done, in
+this order, idempotently. Run `plan`, read it with the owner, then `apply`; run `plan` again as the
+check. The steps below remain the reference for what each one means and for a kernel too old to carry
+the installer.
+
 ## The order (each step ends with its check; do not continue past a failed check)
 
 1. Clone to `/srv/apps/<catalog_key>` at the release tag or commit the owner names. Install its dependencies.

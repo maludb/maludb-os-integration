@@ -67,15 +67,43 @@ curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:<APP_INTERNAL_PORT>/ap
 For each MCP port, send an `initialize` to `http://127.0.0.1:<port>/mcp` with a person's MCP token.
 It must answer before the endpoint is registered.
 
-## 4. Registration in the kernel — the actions, as the super-admin
+## 4. Registration in the kernel — `bin/app_install.php` (the kernel's installer, C4/K3, 2026-09-28)
 
-Call the kernel's Actions MCP as the super-admin. It is the same door the kernel's screens and
-agents use, so every call is authorised, approval-checked and logged. On the kernel host today, the
-harness that does this is `K/mcp/smoke_actions.py`. It takes a scenario file and the acting member,
-mints an action token for that member, calls each tool, and runs `lookup` SQL between calls. (When
-the kernel's `bin/app_install.php plan|apply` exists, build plan C4, use it instead.)
+The kernel carries the deterministic installer. It reads `maludb-os.json` and runs every step of this
+runbook in order, each one idempotent — a step that finds its work done says so — so one command installs
+fresh, finishes a half-done install, and reconciles a hand-made one:
 
-`register.json` — fill in from `maludb-os.json`. It uses no `{{run}}`, because these are real names.
+```bash
+php  "$K/bin/app_install.php" plan  "$A" --by "$SA_EMAIL" --domain "$DOM"        # read-only: done / todo / note per step
+sudo php "$K/bin/app_install.php" apply "$A" --by "$SA_EMAIL" --domain "$DOM"    # root: does what is not yet done
+#   --scheme https                 when TLS terminates at the application's name (default http: the proxy in front)
+#   --hire-agents                  hire every agents[] entry (the default applications' rule); otherwise they are proposed
+#   --grant-standing-departments   every standing department gets the member role at write (K4)
+#   --tenant <db prefix>  --ref <tag>  --no-restart
+```
+
+`plan` first, always; read it with the owner. `apply` covers §1–§3 (code, venv, database, roles, `.env`, ports,
+the vhost and units rendered from `deploy/` — see the placeholders below —, `/etc/hosts` when the name does not
+resolve), the registration (catalog entry kind `ours`, the application with its sign-on paths, the endpoints that
+answer, the roles read from `app_roles`, `active`), §5 (the token minted into `config/.env`, never printed), §6
+(the registry on the kernel's Actions MCP), skills imported and assigned at application scope, one
+`approval_policies` row per `approvals[]` entry not already covered, the installer's admin grant, and the proofs
+(health, a real hand-off that lands and whose replay is refused). Every kernel write is logged under the
+super-admin named. What it does not do is the owner's: DNS, TLS, any grant not named, hiring the proposed agents
+(`php bin/app_install.php … --hire-agents`, or `bin/hire_application_agent.php --app <key> --agent <key>`).
+
+**`deploy/` files are templates.** `{{DOMAIN}}`, `{{APP_DIR}}`, `{{APP_KEY}}`, `{{APP_FQDN}}` and any env key
+(`{{APP_INTERNAL_PORT}}`, `{{MCP_RECORDS_PORT}}`, …) are filled in at install; a file with no placeholders is
+installed as written, with a note. Write the vhost and the units with placeholders, never with one host's ports.
+
+**Check:** `plan` again answers `done` on every step; the application page in the kernel shows the sign-on
+paths, the endpoints and the roles with their rights.
+
+<details><summary>Before the installer existed: the registration by hand, through the kernel's Actions MCP</summary>
+
+Call the kernel's Actions MCP as the super-admin — the same door the kernel's screens and agents use, so every
+call is authorised, approval-checked and logged. The harness is `K/mcp/smoke_actions.py`: a scenario file and
+the acting member; it mints an action token for that member, calls each tool, and runs `lookup` SQL between calls.
 
 ```json
 [
@@ -96,9 +124,8 @@ the kernel's `bin/app_install.php plan|apply` exists, build plan C4, use it inst
 cd "$K/mcp" && venv/bin/python smoke_actions.py run /path/to/register.json "$SA"
 ```
 
-- **Check:** the application page in the kernel shows the sign-on paths, *Serves*, the endpoints, and the roles **with their rights**, read from the application (0.4.0: the roles come from its `app_roles` tool, which needs the records server running and its endpoint registered first; an application that cannot publish them gets `application_roles_set` instead).
-- **Every step must answer `ok`.** A refusal carries the kernel's own sentence. Fix the cause and
-  re-run only what is left. `application_save` with the same key refuses, which is idempotency by design.
+Every step must answer `ok`; `application_save` with the same key refuses, which is idempotency by design.
+</details>
 
 ## 5. The application token — minted straight into the application's config
 
