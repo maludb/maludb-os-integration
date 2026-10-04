@@ -68,7 +68,9 @@ the app's guard ──no session──▶ kernel launcher        (instead of /lo
    9. `deploy/`.
 
    The code comes from `../os-integration/references/php-sign-on-kit.md`, renamed to the
-   application's conventions.
+   application's conventions. **An application built with `htmx-php-builder` ≤ 0.4.x** has one known
+   shape; its deltas and the fixes that worked are [references/htmx-php-builder-profile.md](references/htmx-php-builder-profile.md) —
+   read it before the survey, and expect the survey to confirm it.
 6. **Prove it without a kernel** (`../os-integration/references/testing-without-a-kernel.md`), plus
    the adoption proofs in `adapter.md` §9. The most important of those is the standalone proof:
    **with `OS_ENABLED` off, the application behaves exactly as before.**
@@ -90,3 +92,5 @@ the app's guard ──no session──▶ kernel launcher        (instead of /lo
 - Never hold the kernel's keys in the repository. `ACTION_TOKEN_KEY` and `OS_APPLICATION_TOKEN` come
   from the installer, in `config`, git-ignored.
 - Never change a production server from this skill. The output is a branch; installing is `os-install`.
+- Never rewrite the application's handlers to answer JSON. A JSON-mode shim that reads the HTMX answer at shutdown
+  (`htmx-php-builder-profile.md`) keeps one code path for people and agents.

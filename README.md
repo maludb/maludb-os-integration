@@ -47,7 +47,10 @@ phase 7) so an application is built to the contract and nothing is faked in the 
 
 The order for a new application on another server: build it with `htmx-php-builder` + `os-integration`,
 and prove it with `testing-without-a-kernel.md`. Then, on the kernel's server, `os-install` it. For an
-existing application: `os-adopt` in its repository, then `os-install`.
+existing application: `os-adopt` in its repository, then `os-install`. An application built with `htmx-php-builder`
+≤ 0.4.x is adopted by the profile in `os-adopt/references/htmx-php-builder-profile.md` (written from the Cidery adoption,
+2026-10-04: config/.env beside the PHP config, the hand-off ending in the app's own login, a roles SET, a JSON-mode
+shim in front of HTMX handlers, a registry builder with path parameters, `database.provision` and `runtime.python`).
 
 ## Installation
 

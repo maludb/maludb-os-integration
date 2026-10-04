@@ -26,6 +26,9 @@ for f in "$A"/db/*.sql; do sudo -u postgres psql -v ON_ERROR_STOP=1 -d "<db>" -f
 
 - The passwords go into `config/.env` in §2, and then `/tmp/$KEY.*.pw` is deleted.
 - An adopted application's schema may live elsewhere (`docs/sql/…`). Use the files the manifest names.
+- A schema that needs more than files-in-order (roles per file, an extension's memory schema, a seed row) ships an
+  idempotent `database.provision` script; the installer runs it after creating the database and roles, and again on
+  every apply (registration.md). A venv elsewhere than `mcp/venv` is `runtime.python`.
 
 **Check:** every migration applied on an empty database, and the `mcp_*` views are granted only to the read roles.
 

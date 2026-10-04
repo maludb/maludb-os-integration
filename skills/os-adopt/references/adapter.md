@@ -118,6 +118,18 @@ An application with no MCP servers yet declares the endpoints it has. For exampl
 MCP at `/api/mcp/admin.php` is `auth_kind: bearer`. Record the memory and MCP parts of the contract
 as owed.
 
+## 7b. The kernel's actions server reaching HTMX handlers (2026-10-04)
+
+The kernel's actions server POSTs a handler with `Accept: application/json`, `X-Action-Token` (the tenant's 3-part
+person token or 4-part run token) and, for a run token, `X-Action-Relay`. An existing application's handlers answer
+HTMX. Do not rewrite them: buffer the whole answer when JSON mode is on and translate it at shutdown — `HX-Location`
+/ `Location` → `location` (the kernel takes `record_id` from its tail), `invalid-feedback` divs and `alert-danger`
+lists → a 422 with `errors` and `fields`, the error partial's `#error-message` → the message, 401/launcher redirect →
+401. A new handler may still call `emit_action_status()` to say more. The reference implementation is Cidery's
+`app/json_mode.php`. Endpoints with path parameters (`/vessels/{id}/status`) are declared in the registry with the
+entity's name in the path (`/vessels/{vessel}/status`); the kernel resolves and substitutes it (registration.md, "Path
+parameters").
+
 ## 8. `/api/v1/health` and `deploy/`
 
 - **Health:** an unauthenticated GET answering `{"ok": true, "application": "<key>", "version": "…", "database": "ok"}`.
