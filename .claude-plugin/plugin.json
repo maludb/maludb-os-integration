@@ -1,7 +1,7 @@
 {
   "name": "maludb-os-integration",
-  "version": "0.6.0",
-  "description": "Fits an application into the MaluDB Business OS kernel \u2014 memory (PostgreSQL 17 records, MaluDB activity), MCP/API coverage, single sign-on from the kernel's launcher with the directory mirrored, scoped applications that serve several sites or departments, the application's own roles and rights published to the kernel (app_roles) and granted by the super-admin, and the agent interface. Three skills: os-integration (the contract, with copyable PHP and a no-kernel test kit), os-adopt (fit an existing application), os-install (install and register an application beside a kernel).",
+  "version": "0.7.0",
+  "description": "Fits an application into the MaluDB Business OS kernel — memory (PostgreSQL 17 records, MaluDB activity), MCP/API coverage, single sign-on from the kernel's launcher with the directory mirrored, scoped applications that serve several sites or departments, the application's own roles and rights published to the kernel (app_roles) and granted by the super-admin, the agent interface, and the estate's one data model (survey the sibling applications' schemas, reuse the canonical table verbatim, read owned data through the kernel; every table created by the application's own migrations). Three skills: os-integration (the contract, with copyable PHP and a no-kernel test kit), os-adopt (fit an existing application), os-install (install and register an application beside a kernel).",
   "author": {
     "name": "Edward Honour"
   },

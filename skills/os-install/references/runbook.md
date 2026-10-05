@@ -32,6 +32,12 @@ for f in "$A"/db/*.sql; do sudo -u postgres psql -v ON_ERROR_STOP=1 -d "<db>" -f
 
 **Check:** every migration applied on an empty database, and the `mcp_*` views are granted only to the read roles.
 
+**Tables reused from a sibling application** *(0.7.0)* are created here by this application's own `db/*.sql` (or its
+`database.provision` script) — the installer never looks for the sibling, because an installation holds any subset of
+the applications. A migration that includes another application's file, references another database or reads another
+`/srv/apps/<key>` is a defect to fix in the application before `apply`; a K7 `reads[]` whose provider is absent is
+simply left unconnected (`shared-schema.md` §3).
+
 ## 2. `config/.env`
 
 ```bash

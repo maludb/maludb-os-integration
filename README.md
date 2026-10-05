@@ -12,7 +12,7 @@ built with `htmx-php-builder` and fitted to the kernel with this plugin. The des
 implements is *Business OS — Kernel and Integration Design* (2026-09-22), kept as
 `docs/business-os-integration.md` in the platform repository.
 
-It answers four questions for Claude Code while it works on such an application:
+It answers five questions for Claude Code while it works on such an application:
 
 1. **How are memories expected to be stored?** Record memory in the application's own
    PostgreSQL 17 database behind `mcp_*` visibility views; activity memory as an append-only
@@ -32,6 +32,12 @@ It answers four questions for Claude Code while it works on such an application:
    shared keys, tool grants that fail closed, approvals that pause for agents, the prompt ledger,
    skills assigned at application scope, the shipped agents (the expert first), and the
    `maludb-os.json` registration the installation agent reads. → `references/agents.md`, `references/registration.md`
+5. **Which tables does it use?** *(0.7.0, 2026-10-05)* The estate's. Every application has its own database, but the
+   estate has one data model: before any `CREATE TABLE` the sibling applications' schemas are surveyed; data another
+   application owns is read through the kernel, never copied; a shared concept (attachments, notes, notifications,
+   billing documents, …) takes the canonical definition verbatim, extended only by appending; a new table is the last
+   resort and becomes canonical. The definition always lives in the application's own migrations, so the installer
+   creates it whichever applications that installation holds. → `references/shared-schema.md` (with the catalogue)
 
 The references are written from the platform's code as of 2026-09-21, revised to the kernel
 design of 2026-09-22, and say plainly which kernel-side pieces are still owed (build-plan
@@ -83,5 +89,6 @@ values, or who runs the actions server), this plugin is the platform's current w
 .claude-plugin/marketplace.json     this repo as a marketplace
 skills/os-integration/SKILL.md      the skill: what the platform expects, how to work, non-negotiables
 skills/os-integration/references/   memory.md · mcp-and-api.md · sign-on-and-directory.md · agents.md · registration.md
-                                    scoped-applications.md · roles-and-rights.md · php-sign-on-kit.md · testing-without-a-kernel.md
+                                    scoped-applications.md · roles-and-rights.md · sms-and-reads.md · shared-schema.md
+                                    php-sign-on-kit.md · testing-without-a-kernel.md
 ```

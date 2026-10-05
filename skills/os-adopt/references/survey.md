@@ -20,6 +20,7 @@ Answer every question with evidence (`file:line`, a grep count, the `CREATE TABL
 - The platform-level role, if any (a super-admin across tenants).
 - The screens that create users, invite them, change roles, deactivate them, and create tenants. These become read-only under `OS_ENABLED`.
 - How a tenant is chosen for a request (a session key, a switcher, a subdomain).
+- **Its tables against the estate** *(0.7.0)*: with the survey commands in `os-integration/references/shared-schema.md` §1, list every table a sibling application also has and say whether it is the same concept. An adopted application keeps its own schema — but the tables adoption **adds** (the mirror, `os_*`, `activity_log`, `activity_ingest_state`) are the canonical definitions verbatim, each in this application's own migrations, and a divergence found is recorded in the catalogue so the next application does not inherit it.
 
 ## 4. Machine access
 - API keys or bearer tokens: where they are checked, and whether they depend on the user being active.
