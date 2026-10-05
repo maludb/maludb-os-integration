@@ -51,6 +51,11 @@ the installer.
    - `ACTION_TOKEN_KEY` and `ACTIONS_RELAY_KEY` copied from the kernel's `config/.env`, **never printed**;
    - `OS_INTERNAL_URL`, `OS_LAUNCHER_URL`, `APP_KEY`, and the tenant's `MALUDB_*`;
    - `OS_ENABLED=1` for an adopted application;
+   - **MaluMail** (2026-10-05): when the manifest names `MALUMAIL_API_KEY`, `MAIL_FROM`, `MAIL_FROM_NAME` (required or
+     optional) and the file lacks them, the installer writes them — the key from `~/.malumail` of the person installing
+     (one line, the key; or env-style lines with the three keys), else the kernel's own `config/.env`; the sender from the
+     same, else `no-reply@<domain>` and the application's name. Reported as the `mail` step; the key is **never printed**.
+     No key anywhere → a note, and the application sends no mail until one is set and `apply` runs again;
    - the file is readable by group `www-data` only.
 4. Ports:
    - pick free ones (`ss -ltn`) for `APP_INTERNAL_PORT` and each MCP port;

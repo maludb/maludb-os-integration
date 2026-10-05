@@ -60,6 +60,9 @@ sudo chgrp www-data "$A/config/.env" && sudo chmod 640 "$A/config/.env"
   format (`os-adopt` records which).
 - The tenant's MaluDB token (`MALUDB_API_TOKEN`) is minted for the application, never copied from
   the kernel's. See `memory.md` in `os-integration`.
+- `MALUMAIL_API_KEY`, `MAIL_FROM`, `MAIL_FROM_NAME` (when the manifest names them): the key from `~/.malumail` of the
+  person installing — one line, the key — else the kernel's `config/.env`; `bin/app_install.php` does this itself on
+  every `apply` (the `mail` step), in place when the line is there and empty. A missing key is a note, never a stop.
 
 ## 3. Ports, vhost, services
 
