@@ -35,7 +35,8 @@ connection (`bin/app_connection.php list|approve|revoke`, logged `application_co
 
 ```json
 "shares": [ { "tool": "covers_by_service", "description": "Booked covers per date and service at one restaurant", "scoped": true },
-             { "tool": "time_off_taken", "description": "Approved time off per member", "scoped": true, "people": true } ],
+             { "tool": "time_off_taken", "description": "Approved time off per member", "scoped": true, "people": true },
+             { "tool": "ask", "description": "A cited answer from a base shared with the asking application", "timeout_seconds": 60 } ],
 "reads":  [ { "app": "reservations", "tool": "covers_by_service", "why": "Expected covers for the staffing forecast" } ]
 ```
 
@@ -56,6 +57,16 @@ id, for people at the named site only, and the kernel lets **only an application
 read it: any other consumer's connection is refused at approval and the call answers 403 `people_restricted`. A facts-
 about-a-site share needs no flag; if it names a person it needs one.
 
+**Who is asking (K26, 0.8.0, 2026-10-06).** Every message of the kernel's call carries two HTTP headers set from the consumer's own
+registration, never from what it sent: `X-OS-Consumer` (the consuming application's catalog key) and, when it has an expert,
+`X-OS-Consumer-Agent` (that agent's kernel member id). A provider that needs to know who asks — to answer only what is shared
+with *that* application, or to run the share as the consumer's expert — reads them in its kernel-token gate (the same place it reads
+`Authorization`; trust them for the same reason: only the kernel can mint that token) into request-scoped variables its share tools
+read. The identity is **never an argument**: a share's argument model may keep `extra = "forbid"`, and the kernel strips the
+reserved arguments `consumer`, `consumer_agent_id`, `as_agent` (and `scope_id`) from whatever the consumer sent. A provider that
+answers about a site alone ignores the headers. A share that does real work (an engine, a report) declares `"timeout_seconds"`
+(1–60; 8 when absent): the kernel waits that long for its answer and no longer.
+
 **Consumer.** Name the kernel `location_id` of a site both applications serve (your mirror of the scope carries it).
 Treat `no_connection` as "not approved yet" and degrade (e.g. let a manager type the forecast). Nothing writes across:
 a consumer that must change another application asks a person.
@@ -66,4 +77,5 @@ connection for each `reads[]` whose provider is installed; the rest wait until i
 ## Checklist
 - [ ] Texts go through `/api/v1/notify/sms.php`; every refusal falls back to email; no Twilio key in `config/.env`.
 - [ ] `shares[]` lists exactly the tools the kernel token may call besides `app_roles`; each answers about a site, not a person.
+- [ ] A share that needs to know who asks reads `X-OS-Consumer` / `X-OS-Consumer-Agent` in the kernel-token gate — never an argument; one that runs an engine declares `timeout_seconds`.
 - [ ] `reads[]` names each tool read from another application, with `why`; `no_connection` degrades gracefully.
