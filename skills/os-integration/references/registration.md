@@ -102,7 +102,9 @@ until the agent exists. Every value maps to a column the kernel already has.
         "Records MCP": ["find_bookings", "find_slots", "find_services"],
         "Actions MCP": ["booking_create", "booking_update"]
       },
-      "skills": ["skills/reservations-booking-rules"]
+      "skills": ["skills/reservations-booking-rules"],
+      "duty": { "name": "The morning note", "schedule_cron": "30 6 * * *", "runbook": "skills/reservations-booking-rules",
+                "instructions": "Every morning, list today's bookings by room and the ones with no deposit; propose, never cancel." }
     }
   ],
 
@@ -112,6 +114,12 @@ until the agent exists. Every value maps to a column the kernel already has.
   ]
 }
 ```
+
+An agent may declare its scheduled work: `duty` (one object) or `duties[]`, each a `name` and a `schedule_cron`
+(in the business's time zone), with `instructions` the kernel runs as the duty's prompt, or a `runbook` path (a skill
+directory or a job description the instructions will point the agent at). `bin/hire_application_agent.php` (kernel,
+2026-10-08) creates them as the agent's duties after any the kernel itself knows for that agent key; a re-run with
+`--reconcile-tools` grants new tools, duties are not reconciled.
 
 ### Field by field, and where it lands
 
