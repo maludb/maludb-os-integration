@@ -67,7 +67,7 @@ in which applications they hold. So, in a migration: never `\i` or `\include` an
 `database.provision` script look for a sibling. The only cross-application dependency allowed is a K7 read, and its
 absence is the `no_connection` answer the application already handles.
 
-## 4. The catalogue (as of 2026-10-05)
+## 4. The catalogue (as of 2026-10-09)
 
 *Canonical* is the definition to copy. Where copies had already diverged before this rule, the canonical is the most
 recent planning-class design (the General Ledger and Consultant Tracking, both 2026-10-05, built with the others in
@@ -102,8 +102,16 @@ migration that appends the canonical columns and keeps the old ones until the co
 | A message | `messages` — two shapes under one family: Help Desk `db/010` (a ticket's correspondence) and Spaces `db/010` (a channel message with a one-level thread) | — | recorded as siblings, not a reuse |
 | A cross-entity search index | `search_index` — **Spaces `db/013`** (entity_kind, entity_uuid/entity_id, tsvector, has_link/has_file, occurred_at) | — | canonical from 2026-10-05 |
 | Pages, blocks and the permission tree; channels and conversations | `pages`, `page_permissions`, `page_links`, `page_versions`, `page_publications`, `blocks`; `channels`, `channel_members`, `dm_pairs`, `message_mentions`, `message_reactions`, `saved_messages`, `reminders` — **Spaces `db/007`, `db/008`, `db/010`** | — | canonical from 2026-10-05 (the first application designed under this rule) |
+| A company at any point of a relationship; a person who may belong to no company; every address a person uses | `accounts`, `contacts`, `contact_emails` — **Sales CRM `db/007`** (accounts: name, legal_name, domain, kind prospect/customer/partner/former, owner_member_id, restricted_to_*, merged_into_id, custom_values, deleted_at; contacts: first/last/name generated, email, email_alt, role, is_primary, lifecycle derived, opt-outs, owner, merged_into_id) | — | canonical from 2026-10-09; the GL's `customers` stays the billing party (read through K7 once a deal is won — the shared column names name, legal_name, email, phone, billing_address, shipping_address, currency are kept); Help Desk's `organizations`/`requesters` stay support's view (read) |
+| A dated touch with an owner, a state, an outcome and a reminder, on any record | `activities`, `activity_participants` — **Sales CRM `db/010`** (kind call/email/meeting/task/deadline/lunch, subject, body, the four record keys, owner_member_id, due_at or starts_at/ends_at, done_at, outcome, remind_minutes_before, remind_at, reminded_at, snoozed_until, email_direction, is_private, priority, recurrence, source) | — | canonical from 2026-10-09; Spaces' `reminders` is a note to self, Help Desk's `time_entries` and Projects' `worklogs` are time — none is a touch |
+| A sales pipeline: stages as columns, deals with history, products on a deal | `pipelines`, `stages`, `deals`, `deal_stage_history`, `deal_contacts`, `deal_products`, `lost_reasons`, `quotas` — **Sales CRM `db/008`**, `db/006` | — | canonical from 2026-10-09; a stage IS a column (no mapping table, unlike Projects' `board_columns`); `deal_products` lines by name with an optional provider id (`inventory`/`gl`) — no catalog of the CRM's own |
+| A lead and its routing | `leads`, `lead_sources`, `assignment_rules` — **Sales CRM `db/009`**, `db/006` | — | canonical from 2026-10-09 |
+| Campaigns, lists and segments, import and export jobs | `campaigns`, `campaign_members`, `lists`, `list_members`, `import_templates`, `import_rows`, `email_templates` — **Sales CRM `db/011`, `db/012`** | — | canonical from 2026-10-09; `imports`/`exports` stay Spaces' (reused with the CRM's targets appended) |
+| A tag on any record | `record_tags` (record_type + record_id + tag_id) — DocCloud `db/009` (as `document_tags`) = **Sales CRM `db/006`** | Help Desk `ticket_tags` (one record kind) | the polymorphic shape is the one to copy from 2026-10-09 |
+| Email in and out through a mailbox | `mailboxes`, `inbound_email`, `outbound_email` — Help Desk `db/012` | **Sales CRM `db/011`** (verbatim; `queue_id`, `ticket_id`, `message_ref_id` kept nullable and unused; appended `sender_member_id`, `deal_id`, `match_status`, `matched_contact_ids`, `is_private`; outbound appends the body, `message_id` for threading, `template_id`) | the second application to keep a mailbox (2026-10-09) |
 
 **Owned data — read, never copied:** employment (HR), the chart of accounts, customers, vendors and the books
+(GL), the relationship — accounts, contacts, leads, deals, activities (Sales CRM, through its five shares),
 (GL), issues (Projects), tickets and requesters (Help Desk), engagements and time (Consultant Tracking), covers
 (Reservations), shifts (txtSchedules), the directory and scopes (the kernel).
 
