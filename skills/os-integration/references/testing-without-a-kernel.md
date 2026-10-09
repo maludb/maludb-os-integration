@@ -65,6 +65,14 @@ The fixture holds the claims per member and a feed document in the kernel's exac
 
 Make `directory_sync.php` accept `--from-file bin/dev_directory.json` and apply `feed` with the same functions it uses for the kernel's answer. To test a revocation, edit the fixture so Priya holds `"scopes": []` and `"capability": null`, then run the sync again.
 
+## 3b. The application switcher without a kernel
+
+`os_my_applications()` asks the kernel as the person; without one it returns null and the header shows nothing. The exemplar's
+proof (`prove-switcher.sh`) asks the REAL kernel of the host with the install's own token — a read — because the feed is the
+kernel's judgement of who may open what; on a server with no kernel, prove the partial from a fixture instead: call
+`view('shared/app-switcher.php', ['feed' => <a decoded os.my-applications/1 document>])` and check the button, the rows, the
+marked current application and the foot, as the exemplar's in-process checks do.
+
 ## 4. The proofs to run before calling it ready
 
 1. The `dev_handoff.php 26` URL opens a session at Airport. The same URL a second time is refused (replay), and so is the same URL after 61 s.

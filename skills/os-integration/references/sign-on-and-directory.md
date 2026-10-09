@@ -206,6 +206,32 @@ person downloads from the kernel's Statements screen, and what the `ledger_perio
 | `APP_KEY` | This application's `catalog_key` — the audience of every token it accepts |
 | `MALUDB_API_URL`, `MALUDB_API_TOKEN` | The tenant's one memory (`memory.md`) |
 
+## 8. Moving between applications — the Helpdesk button and the application switcher (2026-10-09)
+
+A person who holds several applications moves between them from any application's header, without the launcher page:
+a dedicated **Helpdesk** button (the Help Desk is in every installation) and a dropdown of every application they may open.
+Three rules, and one kernel endpoint (K31, `docs/build-specs/kernel-app-switcher.md`):
+
+1. **A cross-application link is a launch.** It goes to `OS_LAUNCHER_URL` + `/launch/<id>` (`?scope=<id>` for one site or
+   department of a scoped application) — the hand-off is what signs the person in. Never the sibling's own address, never
+   an HTMX swap: every such link is a full navigation.
+2. **The list is the launcher's.** `GET /api/v1/apps/mine.php` on the internal port, bearer = the application token,
+   `X-Acting-Member` = the person: the kernel becomes that person and answers what its launcher would show them —
+   `{schema: "os.my-applications/1", member_id, application: {id, key}, launcher_url (best effort), os_url (a super-admin),
+   applications: [{id, key, name, icon, business_area, capability, sso, status, current, launch_path, scopes: [{id, name,
+   role, launch_path}]}]}`. The application appends each `launch_path` to its own `OS_LAUNCHER_URL` (the installer's scheme,
+   not the kernel's guess). Refusals are the directory API's: 401 for the token, 400 without an acting member, 403 for an
+   agent or a person with no live grant on the calling application. A read: nothing is logged.
+3. **Cached, not asked on every page.** The application keeps the answer in the session for five minutes (a fresh hand-off
+   starts a fresh session, so a new grant shows at the next sign-on at the latest), keeps the last answer when the kernel
+   does not respond and asks again after a minute, and renders nothing standalone or before the first answer.
+
+What the header shows: the Helpdesk button only when the person holds the Help Desk (`key = helpdesk`) and this is not it;
+one row per application or per scope, the current application marked and not linked; "All applications" and, for a
+super-admin, "Operating system" at the foot. The code is `php-sign-on-kit.md` §8 (one `app/switcher.php` for both shapes of
+application and the partial); the markup and CSS are the design system's ("Header: the application switcher"). It replaces
+the earlier ad-hoc "All applications" icon.
+
 ## Checklist
 
 - [ ] `sso.path` receiver: two signatures, TTL, audience, single-use nonce, mirror upsert, own session, one refusal page, both events logged.
@@ -215,5 +241,6 @@ person downloads from the kernel's Statements screen, and what the `ledger_perio
 - [ ] Directory timer on `GET changes` with a checkpoint and an advisory lock; full refresh on first run.
 - [ ] Writes (HR only): `X-Acting-Member`, `directory.writes` declared, the kernel's `request_id` copied into the local log.
 - [ ] Command bar posts to the kernel's chat endpoint; no model key anywhere in the application.
+- [ ] The application switcher *(2026-10-09)*: `app/switcher.php` + `shared/app-switcher.php` in the header; the feed from `GET /api/v1/apps/mine.php` as the person, cached five minutes; every link a launch on `OS_LAUNCHER_URL`; nothing standalone.
 - [ ] Scoped *(2026-09-25)*: `os_scopes` + `member_scope_roles` from the claims and the feed's `scopes[]`/`access[]`; the session's scope re-checked per request; every scoped row, view and tool filtered by the scopes held; structure never created in the application (`scoped-applications.md`).
 - [ ] Adopted *(2026-09-25)*: the application's own users table linked by `os_member_id`, the hand-off ending in the application's own login function, local sign-in/registration/reset retired while `OS_ENABLED` is on (skill `os-adopt`).

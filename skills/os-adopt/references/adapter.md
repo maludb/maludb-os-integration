@@ -50,6 +50,13 @@ the tenant for `claims.scope` (`switchRestaurant(<the restaurant for that scope>
 `/sso/logout` is the kit's §5 as it stands. It needs the session list, because a PHP file session
 cannot be found by user id.
 
+## 3b. The header's application switcher (2026-10-09)
+
+Add `app/switcher.php` (`php-sign-on-kit.md` §8 — it finds `os_enabled()`, `os_launcher_url()`, `current_user()['os_member_id']`
+and `kernel_call()` from §2–§4 above) and render `shared/app-switcher.php` in the layout's `header-right` before the dark-mode
+toggle: the Helpdesk button and the dropdown of the person's applications, from the kernel's `GET /api/v1/apps/mine.php`,
+cached five minutes. Under the flag off it renders nothing, so the standalone product is unchanged.
+
 ## 4. The guard
 
 ```php

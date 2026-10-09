@@ -373,3 +373,146 @@ function require_member(PDO $pdo): array
     return $member;
 }
 ```
+
+## 8. The application switcher (`app/switcher.php` + `app/views/shared/app-switcher.php`, 2026-10-09)
+
+`sign-on-and-directory.md` §8 says what it is. One file serves both shapes of application — a kit one (this kit: `env()`,
+`current_member_id()`, `kernel_call()`) and an adopted one (`os_enabled()`, `os_launcher_url()`, `current_user()['os_member_id']`,
+`kernel_call()` from `os-adopt/adapter.md`). Require it from the bootstrap after the OS helpers; render the partial in the layout
+before `div.nxl-h-item.dark-light-theme`: `<?= view('shared/app-switcher.php') ?>`. The CSS is the design system's APPLICATION
+SWITCHER section. Proof: the exemplar's `scripts/prove-switcher.sh` (design-system `examples/php/app-switcher/`).
+
+```php
+<?php
+declare(strict_types=1);
+
+/**
+ * The application switcher — the Helpdesk button and the dropdown of the person's applications in every application's
+ * header (K31, 2026-10-09; the kernel's docs/build-specs/kernel-app-switcher.md; the integration plugin's
+ * sign-on-and-directory.md §8). One file for both shapes of application: an adopted one (`app/os.php`: os_enabled(),
+ * os_launcher_url(), kernel_call(), current_user()['os_member_id']) and a kit one (env('OS_APPLICATION_TOKEN'),
+ * env('OS_LAUNCHER_URL'), kernel_call(), current_member_id() — the kernel's member id IS the member id). Required by the
+ * bootstrap after the OS helpers; rendered by app/views/shared/app-switcher.php.
+ */
+
+/** The kernel's id of the signed-in person, or 0 when there is none (standalone, anonymous, an agent's token). */
+function os_switcher_member_id(): int
+{
+    if (function_exists('current_user')) {
+        return (int) (current_user()['os_member_id'] ?? 0);
+    }
+    if (function_exists('current_member_id')) {
+        return (int) (current_member_id() ?? 0);
+    }
+    return 0;
+}
+
+/** Is this installation under the kernel? An adopted application says so with OS_ENABLED; a kit one is only ever under it. */
+function os_switcher_enabled(): bool
+{
+    if (function_exists('os_enabled')) {
+        return os_enabled();
+    }
+    return (string) env('OS_APPLICATION_TOKEN', '') !== '';
+}
+
+/** The launcher's address (OS_LAUNCHER_URL, the installer's — scheme and all), with a trailing slash. */
+function os_switcher_launcher_url(): string
+{
+    $url = function_exists('os_launcher_url') ? os_launcher_url() : (string) env('OS_LAUNCHER_URL', '');
+    return $url === '' ? '' : rtrim($url, '/') . '/';
+}
+
+/** A launch path from the kernel's feed (`/launch/<id>`, `?scope=<id>`) on the launcher's address. */
+function os_launch_href(string $path): string
+{
+    return os_switcher_launcher_url() . ltrim($path, '/');
+}
+
+/**
+ * The applications the signed-in person may open, as the kernel's launcher would list them (GET /api/v1/apps/mine.php as
+ * this person): {launcher_url, os_url, applications[{id, key, name, icon, business_area, current, launch_path, scopes[{id,
+ * name, role, launch_path}]}]}. Cached in the session for five minutes (a fresh hand-off starts a fresh session, so a new
+ * grant shows at the next sign-on at the latest); a kernel that does not answer leaves the last answer in place and is
+ * asked again after a minute. Null standalone, for a person the kernel does not know, or before the first answer.
+ */
+function os_my_applications(bool $refresh = false): ?array
+{
+    if (!os_switcher_enabled()) {
+        return null;
+    }
+    $memberId = os_switcher_member_id();
+    if ($memberId <= 0) {
+        return null;
+    }
+    $cached = $_SESSION['os_apps'] ?? null;
+    if (is_array($cached) && (int) ($cached['member'] ?? 0) === $memberId) {
+        $fresh = ($cached['at'] ?? 0) > time() - (($cached['feed'] ?? null) === null ? 60 : 300);
+        if (!$refresh && $fresh) {
+            return $cached['feed'];
+        }
+    } else {
+        $cached = null;
+    }
+    $answer = kernel_call('GET', '/api/v1/apps/mine.php', null, ['X-Acting-Member: ' . $memberId], 5);
+    $feed = $answer !== null && ($answer['status'] ?? 0) === 200 && is_array($answer['body'] ?? null) ? ($answer['body']['data'] ?? $answer['body']) : null;
+    if (!is_array($feed) || !isset($feed['applications'])) {
+        $_SESSION['os_apps'] = ['member' => $memberId, 'at' => time(), 'feed' => $cached['feed'] ?? null];
+        return $cached['feed'] ?? null;
+    }
+    $_SESSION['os_apps'] = ['member' => $memberId, 'at' => time(), 'feed' => $feed];
+    return $feed;
+}
+```
+
+```php
+<?php
+/**
+ * The application switcher (K31; the design-system's "Header: the application switcher"): in `header-right`, before the
+ * dark-mode toggle — the Helpdesk button (when the person holds the Help Desk and this is not it) and the dropdown of every
+ * application the person may open, the current one marked, the launcher and (a super-admin) the operating system at the
+ * foot. Every link leaves this application, so none is an HTMX swap. Renders nothing standalone or before the kernel answered.
+ * @var ?array $feed  os_my_applications()'s answer (looked up when absent)
+ */
+$feed = $feed ?? os_my_applications();   // app/switcher.php
+if (!is_array($feed) || empty($feed['applications'])) {
+    return;
+}
+$apps = $feed['applications'];
+$helpdesk = null;
+foreach ($apps as $a) {
+    if (($a['key'] ?? '') === 'helpdesk' && empty($a['current'])) {
+        $helpdesk = $a;
+    }
+}
+$item = static function (array $a, ?array $scope = null): string {
+    $id = 'header-apps-item-' . (int) $a['id'] . ($scope !== null ? '-' . (int) $scope['id'] : '');
+    $label = e($a['name']) . ($scope !== null ? ' <span class="text-muted">· ' . e($scope['name']) . '</span>' : '');
+    $icon = '<i class="' . e($a['icon'] ?? 'feather-grid') . '"></i>';
+    if (!empty($a['current']) && $scope === null) {
+        return '<span class="dropdown-item active" id="' . $id . '" aria-current="page">' . $icon . '<span>' . $label . '</span></span>';
+    }
+    return '<a href="' . e(os_launch_href(($scope ?? $a)['launch_path'])) . '" class="dropdown-item" id="' . $id . '">' . $icon . '<span>' . $label . '</span></a>';
+};
+?>
+<?php if ($helpdesk !== null): ?>
+<div class="nxl-h-item">
+    <a href="<?= e(os_launch_href($helpdesk['launch_path'])) ?>" class="nxl-head-link me-0 header-helpdesk" id="header-helpdesk-btn" title="Help Desk"><i class="<?= e($helpdesk['icon'] ?? 'feather-life-buoy') ?>"></i><span class="d-none d-sm-inline">Helpdesk</span></a>
+</div>
+<?php endif; ?>
+<div class="dropdown nxl-h-item">
+    <a href="javascript:void(0);" class="nxl-head-link me-0" data-bs-toggle="dropdown" role="button" data-bs-auto-close="outside" id="header-apps-toggle" aria-label="Your applications" title="Your applications"><i class="feather-grid"></i></a>
+    <div class="dropdown-menu dropdown-menu-end nxl-h-dropdown header-apps-menu" id="header-apps-menu">
+        <div class="dropdown-header"><h6 class="text-dark mb-0">Your applications</h6></div>
+        <div class="dropdown-divider"></div>
+        <div class="header-apps-list" id="header-apps-list">
+        <?php foreach ($apps as $a): ?>
+            <?php if (!empty($a['scopes'])): foreach ($a['scopes'] as $s): ?><?= $item($a, $s) ?><?php endforeach; else: ?><?= $item($a) ?><?php endif; ?>
+        <?php endforeach; ?>
+        </div>
+        <div class="dropdown-divider"></div>
+        <a href="<?= e(os_switcher_launcher_url()) ?>" class="dropdown-item" id="header-apps-launcher"><i class="feather-layout"></i><span>All applications</span></a>
+        <?php if (!empty($feed['os_url'])): ?><a href="<?= e($feed['os_url']) ?>" class="dropdown-item" id="header-apps-os"><i class="feather-cpu"></i><span>Operating system</span></a><?php endif; ?>
+    </div>
+</div>
+```
