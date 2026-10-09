@@ -91,7 +91,11 @@ sudo php "$K/bin/app_install.php" apply "$A" --by "$SA_EMAIL" --domain "$DOM"   
 #   --scheme https                 when TLS terminates at the application's name (default http: the proxy in front)
 #   --hire-agents                  hire every agents[] entry (the default applications' rule); otherwise they are proposed
 #   --grant-standing-departments   every standing department gets the member role at write (K4)
-#   --tenant <db prefix>  --ref <tag>  --no-restart
+#   --tenant <db prefix>  --ref <tag>  --no-restart  --rotate-db-passwords
+# A re-run is idempotent. The keys whose value the installer decides (APP_ENV, APP_URL, APP_KEY, DB_NAME, DB_USER, the read roles,
+# ACTION_TOKEN_KEY, ACTIONS_RELAY_KEY, OS_INTERNAL_URL, OS_LAUNCHER_URL, the identity switch) are rewritten in config/.env when they
+# differ — a scratch install's leftovers never survive apply (2026-10-09); the roles' passwords and the ports are kept unless
+# --rotate-db-passwords, which sets fresh ones (never printed) and restarts the services.
 ```
 
 `plan` first, always; read it with the owner. `apply` covers §1–§3 (code, venv, database, roles, `.env`, ports,
